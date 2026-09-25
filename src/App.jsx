@@ -49,7 +49,7 @@ import {
   hapusTransaksi,
   getPasswords,       
   updatePassword      
-} from './services/bankService';
+} from './services/BankService';
 import { compressImage } from './utils/compressImage';
 
 export default function App() {
