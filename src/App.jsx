@@ -300,7 +300,7 @@ export default function App() {
           no_hp: nasabahSelected.no_hp || '',
           nama: nasabahSelected.nama,
           no_rekening: nasabahSelected.no_rekening,
-          pesan: `Halo *${nasabahSelected.nama}* (Rek: *${nasabahSelected.no_rekening}*),\n\nSetoran sampah berhasil dicatat di Bank Sampah BERSERI RW.05:\n- Jenis: ${formSetor.kategoriNama}\n- Berat: ${berat} kg\n- Penambahan Saldo: *+Rp ${totalHarga.toLocaleString('id-ID')}*\n- Total Saldo Anda Sekarang: *Rp ${saldoTerbaru.toLocaleString('id-ID')}*\n\nTerima kasih telah berpartisipasi menjaga lingkungan bersama kami! ♻️*\nMohon tidak membalas pesan ini karena dikirim secara otomatis oleh sistem`
+          pesan: `Halo *${nasabahSelected.nama}* (Rek: *${nasabahSelected.no_rekening}*),\n\nSetoran sampah berhasil dicatat di Bank Sampah BERSERI RW.05:\n- Jenis: ${formSetor.kategoriNama}\n- Berat: ${berat} kg\n- Penambahan Saldo: *+Rp ${totalHarga.toLocaleString('id-ID')}*\n- Total Saldo Anda Sekarang: *Rp ${saldoTerbaru.toLocaleString('id-ID')}*\n\nTerima kasih telah berpartisipasi menjaga lingkungan bersama kami! ♻️`
         });
 
         setFormSetor({ nasabahId: '', kategoriNama: '', hargaCustom: '', berat_kg: '', fotoBase64: '' });
@@ -918,46 +918,15 @@ export default function App() {
       </div>
 
       {/* FOOTER */}
-      <footer className="mt-16 bg-white border-t border-slate-200 py-8">
-        <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
+      <footer className="mt-16 bg-white border-t border-slate-200 py-8 print:hidden">
+        <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-6">
           <div>
-            <p className="font-bold text-slate-800 text-sm">BANK SAMPAH "BERSERI" RW.05</p>
-            <p className="text-xs text-slate-500 mt-0.5">Kelurahan Tambakreja, Kecamatan Cilacap Selatan, Kabupaten Cilacap</p>
+            <p className="font-bold text-slate-800 text-sm">Bank Sampah "BERSERI" RW.05</p>
+            <p className="text-xs text-slate-500">Kelurahan Tambakreja, Kecamatan Cilacap Selatan</p>
           </div>
-
-          {/* LINK SOSIAL MEDIA DENGAN LOGO RESMI BERWARNA */}
           <div className="flex items-center gap-4">
-            {/* Instagram Resmi */}
-            <a 
-              href="https://www.instagram.com/rw_05_tambakreja" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2 bg-slate-200 hover:bg-slate-300 border border-slate-400 text-black font-bold rounded-xl transition shadow-sm group"
-            >
-              <img 
-                src="https://upload.wikimedia.org/wikipedia/commons/e/e7/Instagram_logo_2016.svg" 
-                alt="Instagram Logo" 
-                className="w-5 h-5 shrink-0" 
-              />
-              <span className="text-xs font-semibold text-slate-700 group-hover:text-emerald-700">@rw_05_tambakreja</span>
-              <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-emerald-600" />
-            </a>
-
-            {/* TikTok Resmi */}
-            <a 
-              href="https://www.tiktok.com/@rw_05_tambakreja" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2 bg-slate-200 hover:bg-slate-300 border border-slate-400 text-black font-bold rounded-xl transition shadow-sm group"
-            >
-              <img 
-                src="https://upload.wikimedia.org/wikipedia/commons/3/34/Ionicons_logo-tiktok.svg" 
-                alt="TikTok Logo" 
-                className="w-5 h-5 shrink-0" 
-              />
-              <span className="text-xs font-semibold text-slate-700 group-hover:text-emerald-700">@rw_05_tambakreja</span>
-              <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-emerald-600" />
-            </a>
+            <a href="https://www.instagram.com/rw_05_tambakreja" target="_blank" rel="noreferrer" className="text-xs font-semibold text-slate-600 hover:text-emerald-700">Instagram @rw_05_tambakreja</a>
+            <a href="https://www.tiktok.com/@rw_05_tambakreja" target="_blank" rel="noreferrer" className="text-xs font-semibold text-slate-600 hover:text-emerald-700">TikTok @rw_05_tambakreja</a>
           </div>
         </div>
       </footer>
