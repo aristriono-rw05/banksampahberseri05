@@ -1,6 +1,11 @@
-// File: src/utils/compressImage.js
-export const compressImage = (file, maxWidth = 800, maxHeight = 800, quality = 0.6) => {
+// src/utils/compressImage.js
+export const compressImage = (file, maxWidth = 400, quality = 0.4) => {
   return new Promise((resolve, reject) => {
+    if (!file) {
+      reject(new Error("File foto tidak ditemukan"));
+      return;
+    }
+
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = (event) => {
@@ -11,23 +16,20 @@ export const compressImage = (file, maxWidth = 800, maxHeight = 800, quality = 0
         let width = img.width;
         let height = img.height;
 
-        if (width > height) {
-          if (width > maxWidth) {
-            height = Math.round((height * maxWidth) / width);
-            width = maxWidth;
-          }
-        } else {
-          if (height > maxHeight) {
-            width = Math.round((width * maxHeight) / height);
-            height = maxHeight;
-          }
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
         }
 
         canvas.width = width;
         canvas.height = height;
+
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
+
+        // Konversi ke format JPEG dengan kompresi yang aman
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(dataUrl);
       };
       img.onerror = (error) => reject(error);
     };

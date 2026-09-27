@@ -262,10 +262,15 @@ export default function App() {
     const file = e.target.files[0];
     if (file) {
       try {
-        const compressed = await compressImage(file, 800, 0.7);
+        tampilkanPesan('success', 'Sedang memproses & mengompres foto...');
+        const compressed = await compressImage(file, 400, 0.4);
         setFormSetor(prev => ({ ...prev, fotoBase64: compressed }));
         setPreviewFoto(compressed);
-      } catch (err) { tampilkanPesan('error', 'Gagal memproses foto.'); }
+        tampilkanPesan('success', 'Foto berhasil dipasang dan siap disimpan!');
+      } catch (err) {
+        console.error("Gagal kompresi foto:", err);
+        tampilkanPesan('error', 'Gagal memproses foto dari kamera.');
+      }
     }
   };
 
@@ -430,7 +435,7 @@ export default function App() {
           <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center space-x-3">
               <div className="bg-white p-1 rounded-xl shadow-sm flex items-center justify-center w-12 h-12 overflow-hidden">
-                <img src="/logo.jpg" alt="Logo BERSERI" className="w-full h-full object-contain" onError={(e) => { e.target.src = "https://via.placeholder.com/150?text=Logo"; }} />
+                <img src="/logo.jpg" alt="Logo BERSERI" className="w-full h-full object-contain" onError={(e) => { e.target.src = "https://via.placeholder.com/150?text=Logo.jpg"; }} />
               </div>
               <div>
                 <h1 className="text-xl font-bold tracking-wide">BANK SAMPAH "BERSERI"</h1>
@@ -1070,13 +1075,39 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL FOTO */}
-      {modalFoto && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 print:hidden">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-4 relative shadow-2xl">
-            <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><Camera className="w-5 h-5 text-emerald-600" /> Bukti Timbangan</h4>
-            <div className="rounded-xl overflow-hidden bg-slate-100 border max-h-96 flex items-center justify-center"><img src={modalFoto} alt="Bukti" className="max-h-96 w-full object-contain" /></div>
-            <button onClick={() => setModalFoto(null)} className="mt-4 w-full py-2 bg-slate-800 text-white font-bold rounded-xl text-sm">Tutup</button>
+      {/* MODAL FOTO BUKTI TIMBANGAN */}
+      {modalFoto !== null && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 print:hidden">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 relative shadow-2xl text-center">
+            <h4 className="font-bold text-slate-800 mb-3 flex items-center justify-center gap-2 text-base">
+              <Camera className="w-5 h-5 text-emerald-600" /> Bukti Timbangan
+            </h4>
+            
+            {modalFoto && modalFoto.startsWith('data:image') ? (
+              <div className="rounded-xl overflow-hidden bg-slate-100 border max-h-96 flex items-center justify-center p-2">
+                <img 
+                  src={modalFoto} 
+                  alt="Bukti Penimbangan" 
+                  className="max-h-96 w-full object-contain rounded-lg" 
+                  onError={(e) => {
+                    console.error("Gagal merender gambar Base64:", modalFoto.substring(0, 50));
+                    e.target.style.display = 'none';
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="p-6 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-medium">
+                ⚠️ Data foto tidak valid atau kosong di database (Format Base64 tidak ditemukan). 
+                <br/><span className="text-[10px] text-slate-500 mt-1 block">Nilai data: {String(modalFoto).substring(0, 40)}...</span>
+              </div>
+            )}
+
+            <button
+              onClick={() => setModalFoto(null)}
+              className="mt-5 w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs transition shadow"
+            >
+              Tutup
+            </button>
           </div>
         </div>
       )}
