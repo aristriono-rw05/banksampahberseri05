@@ -478,7 +478,7 @@ export default function App() {
                   src="/logo.jpg" 
                   alt="Logo BERSERI" 
                   className="w-full h-full object-cover scale-110" 
-                  onError={(e) => { e.target.src = "https://via.placeholder.com/150?text=Logo"; }} 
+                  onError={(e) => { e.target.src = "https://via.placeholder.com/150?text=Logo.jpg"; }} 
                 />
               </div>
               <div>
@@ -605,9 +605,12 @@ export default function App() {
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
                   <div>
                     <div className="flex items-center gap-2 text-emerald-700 font-bold text-base mb-4 pb-2 border-b">
-  <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-emerald-100">
-    <img src="/logo.jpg" alt="Logo" className="w-full h-full object-cover scale-110" />
-  </div>
+  <img 
+    src="/logo.jpg" 
+    alt="Logo" 
+    className="w-6 h-6 rounded-full object-cover border border-emerald-300 shadow-sm" 
+    onError={(e) => { e.target.style.display = 'none'; }} 
+  />
   <h2>1. Setor Sampah</h2>
 </div>
                     <form onSubmit={handleSetorSampah} className="space-y-3">
