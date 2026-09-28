@@ -472,8 +472,14 @@ export default function App() {
         <header className="bg-emerald-700 text-white shadow-lg sticky top-0 z-30 print:hidden">
           <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center space-x-3">
-              <div className="bg-white p-1 rounded-xl shadow-sm flex items-center justify-center w-12 h-12 overflow-hidden">
-                <img src="/logo.jpg" alt="Logo BERSERI" className="w-full h-full object-contain" onError={(e) => { e.target.src = "https://via.placeholder.com/150?text=Logo.jpg"; }} />
+              {/* LOGO BULAT TANPA WARNA PUTIH DI SEKITARNYA */}
+              <div className="w-12 h-12 rounded-full overflow-hidden shadow-md border-2 border-emerald-500/50 flex items-center justify-center bg-emerald-800">
+                <img 
+                  src="/logo.jpg" 
+                  alt="Logo BERSERI" 
+                  className="w-full h-full object-cover scale-110" 
+                  onError={(e) => { e.target.src = "https://via.placeholder.com/150?text=Logo"; }} 
+                />
               </div>
               <div>
                 <h1 className="text-xl font-bold tracking-wide">BANK SAMPAH "BERSERI"</h1>
@@ -599,9 +605,11 @@ export default function App() {
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
                   <div>
                     <div className="flex items-center gap-2 text-emerald-700 font-bold text-base mb-4 pb-2 border-b">
-                      <img src="/logo.jpg" alt="Logo" className="w-6 h-6 object-contain rounded-full border" />
-                      <h2>1. Setor Sampah</h2>
-                    </div>
+  <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-emerald-100">
+    <img src="/logo.jpg" alt="Logo" className="w-full h-full object-cover scale-110" />
+  </div>
+  <h2>1. Setor Sampah</h2>
+</div>
                     <form onSubmit={handleSetorSampah} className="space-y-3">
                       <div>
                         <label className="block text-xs font-semibold text-slate-600 mb-1">PILIH NASABAH</label>
@@ -642,7 +650,6 @@ export default function App() {
                         <div className="p-2.5 bg-emerald-100 border border-emerald-300 rounded-xl text-emerald-900 font-extrabold text-sm">+ Rp {totalEstimasi.toLocaleString('id-ID')}</div>
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">FOTO BUKTI TIMBANGAN</label>
                         <div>
                         <label className="block text-xs font-semibold text-slate-600 mb-1">FOTO BUKTI TIMBANGAN</label>
                         <div className="flex flex-wrap items-center gap-2">
