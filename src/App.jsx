@@ -977,15 +977,45 @@ export default function App() {
       </div>
 
       {/* FOOTER */}
-      <footer className="mt-16 bg-white border-t border-slate-200 py-8 print:hidden">
-        <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-6">
+      <footer className="mt-16 bg-white border-t border-slate-200 py-8">
+        <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
           <div>
-            <p className="font-bold text-slate-800 text-sm">Bank Sampah "BERSERI" RW.05</p>
-            <p className="text-xs text-slate-500">Kelurahan Tambakreja, Kecamatan Cilacap Selatan</p>
+            <p className="font-bold text-slate-800 text-sm">BANK SAMPAH "BERSERI" RW.05</p>
+            <p className="text-xs text-slate-500 mt-0.5">Kelurahan Tambakreja, Kecamatan Cilacap Selatan, Kabupaten Cilacap</p>
           </div>
-          <div className="flex items-center gap-4">
-            <a href="https://www.instagram.com/rw_05_tambakreja" target="_blank" rel="noreferrer" className="text-xs font-semibold text-slate-600 hover:text-emerald-700">Instagram @rw_05_tambakreja</a>
-            <a href="https://www.tiktok.com/@rw_05_tambakreja" target="_blank" rel="noreferrer" className="text-xs font-semibold text-slate-600 hover:text-emerald-700">TikTok @rw_05_tambakreja</a>
+
+          {/* LINK SOSIAL MEDIA DENGAN IKON YANG PAS */}
+          <div className="flex flex-wrap items-center gap-4 justify-center md:justify-end">
+            {/* Instagram Resmi */}
+            <a 
+              href="https://www.instagram.com/rw_05_tambakreja" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-tr from-amber-500 via-pink-600 to-purple-600 hover:opacity-90 text-white font-bold rounded-xl transition shadow-md group"
+            >
+              {/* Menggunakan SVG Kamera Instagram Inline yang Pasti Putih */}
+              <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+              </svg>
+              <span className="text-xs font-semibold">@rw_05_tambakreja</span>
+              <ExternalLink className="w-3 h-3 text-white/70 group-hover:text-white" />
+            </a>
+
+            {/* TikTok Resmi */}
+            <a 
+              href="https://www.tiktok.com/@rw_05_tambakreja" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2 bg-black hover:bg-gray-900 border border-gray-800 text-white font-bold rounded-xl transition shadow-md group"
+            >
+              <img 
+                src="https://upload.wikimedia.org/wikipedia/commons/3/34/Ionicons_logo-tiktok.svg" 
+                alt="TikTok Logo" 
+                className="w-5 h-5 shrink-0 brightness-0 invert" 
+              />
+              <span className="text-xs font-semibold">@rw_05_tambakreja</span>
+              <ExternalLink className="w-3 h-3 text-white/70 group-hover:text-white" />
+            </a>
           </div>
         </div>
       </footer>
