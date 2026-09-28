@@ -263,14 +263,49 @@ export default function App() {
     if (file) {
       const reader = new FileReader();
       
-      // Ketika file selesai dibaca, ubah ke Base64 dan simpan
-      reader.onloadend = () => {
-        setFormSetor(prev => ({ ...prev, fotoBase64: reader.result }));
-        setPreviewFoto(reader.result); // Simpan hasil ke state preview
+      reader.onloadend = (event) => {
+        // Membuat elemen gambar virtual untuk memproses kompresi
+        const img = new Image();
+        img.src = event.target.result;
+        
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 800;
+          const MAX_HEIGHT = 800;
+          let width = img.width;
+          let height = img.height;
+
+          // Menyesuaikan rasio gambar agar tidak melebihi batas 800px
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          
+          // Menggambar ulang foto ke dalam kanvas virtual dengan ukuran baru
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // MENGOMPRES FOTO: Ubah ke format JPEG dengan kualitas 60%
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.6);
+          
+          // Simpan teks Base64 yang sudah sangat ringan ini ke sistem
+          setFormSetor(prev => ({ ...prev, fotoBase64: compressedBase64 }));
+          setPreviewFoto(compressedBase64);
+        };
       };
       
       reader.onerror = () => {
-        tampilkanPesan('error', 'Gagal memproses foto.');
+        tampilkanPesan('error', 'Gagal memproses atau membaca foto.');
       };
       
       reader.readAsDataURL(file);
