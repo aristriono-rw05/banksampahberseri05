@@ -656,7 +656,7 @@ export default function App() {
                   src="/logo.jpg" 
                   alt="Logo BERSERI" 
                   className="w-full h-full object-cover scale-110" 
-                  onError={(e) => { e.target.src = "https://via.placeholder.com/150?text=Logo.jpg"; }} 
+                  onError={(e) => { e.target.src = "https://via.placeholder.com/150?text=logo.jpg"; }} 
                 />
               </div>
               <div>
