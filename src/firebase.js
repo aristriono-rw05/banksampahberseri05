@@ -15,4 +15,5 @@ const app = initializeApp(firebaseConfig);
 
 // Inisialisasi Firestore
 export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,;
+  experimentalForceLongPolling: true,
+});
