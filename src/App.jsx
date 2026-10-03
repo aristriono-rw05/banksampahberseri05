@@ -35,7 +35,8 @@ import {
   Filter,
   LayoutDashboard,
   ArrowDownLeft,
-  ArrowUpRight
+  ArrowUpRight,
+  Book // Icon baru untuk Buku Tabungan
 } from 'lucide-react';
 import { 
   tambahNasabah, 
@@ -87,6 +88,7 @@ export default function App() {
   const [editNasabahModal, setEditNasabahModal] = useState(null);
   const [editKategoriModal, setEditKategoriModal] = useState(null);
   const [editTransaksiModal, setEditTransaksiModal] = useState(null);
+  const [cetakBukuModal, setCetakBukuModal] = useState(null); // State Modal Cetak Buku Tabungan
   const [modalFoto, setModalFoto] = useState(null);
   const [gantiPasswordModal, setGantiPasswordModal] = useState(false);
   const [lupaPasswordModal, setLupaPasswordModal] = useState(false);
@@ -645,7 +647,8 @@ export default function App() {
   const totalEstimasi = (formSetor.berat_kg && formSetor.hargaCustom) ? parseFloat(formSetor.berat_kg) * parseFloat(formSetor.hargaCustom) : 0;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 pb-12 flex flex-col justify-between">
+    <>
+    <div className={`min-h-screen bg-slate-50 text-slate-800 pb-12 flex flex-col justify-between ${cetakBukuModal ? 'print:hidden' : ''}`}>
       <div>
         {/* HEADER NAVBAR */}
         <header className="bg-emerald-700 text-white shadow-lg sticky top-0 z-30 print:hidden">
@@ -656,7 +659,7 @@ export default function App() {
                   src="/logo.jpg" 
                   alt="Logo BERSERI" 
                   className="w-full h-full object-cover scale-110" 
-                  onError={(e) => { e.target.src = "https://via.placeholder.com/150?text=logo.jpg"; }} 
+                  onError={(e) => { e.target.style.display = 'none'; }} 
                 />
               </div>
               <div>
@@ -742,7 +745,7 @@ export default function App() {
             </div>
           )}
 
-          {/* DASHBOARD ADMIN / SUPER ADMIN DENGAN 5 HALAMAN TERPISAH */}
+          {/* DASHBOARD ADMIN / SUPER ADMIN */}
           {activeRole === 'admin' && currentRoleLoggedIn && (
             <div className="space-y-6">
               
@@ -810,9 +813,7 @@ export default function App() {
                 <p className="text-sm font-semibold">KELURAHAN TAMBAKREJA, KECAMATAN CILACAP SELATAN</p>
               </div>
 
-              {/* ========================================================= */}
-              {/* HALAMAN 1: DAFTAR NASABAH & SALDO                         */}
-              {/* ========================================================= */}
+              {/* HALAMAN 1: DAFTAR NASABAH & SALDO */}
               {adminTab === 'nasabah' && (
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 print:shadow-none print:border-none print:p-0">
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 pb-4 border-b">
@@ -881,7 +882,7 @@ export default function App() {
                           <th className="p-3">No. HP / WhatsApp</th>
                           <th className="p-3">Total Sampah</th>
                           <th className="p-3 text-right">Saldo Tabungan</th>
-                          {currentRoleLoggedIn === 'superadmin' && <th className="p-3 text-center print:hidden">Aksi</th>}
+                          <th className="p-3 text-center print:hidden">Aksi</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y text-sm">
@@ -891,7 +892,6 @@ export default function App() {
                           </tr>
                         ) : (
                           daftarNasabahTerdfilter.map((n) => {
-                            // Hitung saldo real dari transaksi agar tabel selalu menampilkan saldo terakumulasi akurat
                             const trxListWarga = semuaTransaksi.filter(t => t.no_rekening === n.no_rekening);
                             const realSaldo = trxListWarga.reduce((sum, t) => sum + (t.total_harga || 0), 0);
                             const finalSaldo = Math.max(realSaldo, n.saldo || 0);
@@ -904,14 +904,17 @@ export default function App() {
                                 <td className="p-3 text-slate-600 text-xs">{n.no_hp || '-'}</td>
                                 <td className="p-3 font-semibold text-slate-700 text-xs">{n.total_sampah_kg || 0} kg</td>
                                 <td className="p-3 text-right font-bold text-emerald-700">Rp {finalSaldo.toLocaleString('id-ID')}</td>
-                                {currentRoleLoggedIn === 'superadmin' && (
-                                  <td className="p-3 text-center print:hidden">
-                                    <div className="flex justify-center items-center gap-1">
-                                      <button onClick={() => setEditNasabahModal(n)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>
-                                      <button onClick={() => handleHapusNasabah(n.id, n.nama)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
-                                    </div>
-                                  </td>
-                                )}
+                                <td className="p-3 text-center print:hidden">
+                                  <div className="flex justify-center items-center gap-1">
+                                    <button onClick={() => setCetakBukuModal(n)} title="Cetak Buku Tabungan" className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"><Book className="w-4 h-4" /></button>
+                                    {currentRoleLoggedIn === 'superadmin' && (
+                                      <>
+                                        <button onClick={() => setEditNasabahModal(n)} title="Edit Nasabah" className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>
+                                        <button onClick={() => handleHapusNasabah(n.id, n.nama)} title="Hapus Nasabah" className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
                               </tr>
                             );
                           })
@@ -922,9 +925,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* ========================================================= */}
-              {/* HALAMAN 2: KELOLA HASIL PENJUALAN & LAPORAN LABA RUGI     */}
-              {/* ========================================================= */}
+              {/* HALAMAN 2: KELOLA HASIL PENJUALAN & LAPORAN LABA RUGI */}
               {adminTab === 'penjualan' && (
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
                   <div className="flex items-center gap-2 text-emerald-700 font-bold text-lg mb-4 pb-2 border-b">
@@ -1024,9 +1025,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* ========================================================= */}
-              {/* HALAMAN 3: TRANSAKSI (SETOR, TARIK, PENDAFTARAN)          */}
-              {/* ========================================================= */}
+              {/* HALAMAN 3: TRANSAKSI (SETOR, TARIK, PENDAFTARAN) */}
               {adminTab === 'transaksi' && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   
@@ -1043,8 +1042,6 @@ export default function App() {
                         <h2>Setor Sampah</h2>
                       </div>
                       <form onSubmit={handleSetorSampah} className="space-y-3">
-                        
-                        {/* Auto-Suggest Input Nasabah */}
                         <div className="relative">
                           <label className="block text-xs font-semibold text-slate-600 mb-1">CARI NASABAH (NAMA / NO. REK)</label>
                           <div className="relative">
@@ -1064,7 +1061,6 @@ export default function App() {
                             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-3" />
                           </div>
 
-                          {/* Dropdown Suggestions */}
                           {showSuggestionsSetor && filteredNasabahSetor.length > 0 && (
                             <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
                               {filteredNasabahSetor.map((n) => (
@@ -1153,8 +1149,6 @@ export default function App() {
                         <Wallet className="w-5 h-5 text-rose-600" /><h2>Pengambilan Tabungan</h2>
                       </div>
                       <form onSubmit={handlePenarikanSaldo} className="space-y-3">
-                        
-                        {/* Auto-Suggest Input Nasabah */}
                         <div className="relative">
                           <label className="block text-xs font-semibold text-slate-600 mb-1">CARI NASABAH (NAMA / NO. REK)</label>
                           <div className="relative">
@@ -1174,7 +1168,6 @@ export default function App() {
                             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-3" />
                           </div>
 
-                          {/* Dropdown Suggestions */}
                           {showSuggestionsTarik && filteredNasabahTarik.length > 0 && (
                             <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
                               {filteredNasabahTarik.map((n) => (
@@ -1250,9 +1243,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* ========================================================= */}
-              {/* HALAMAN 4: KELOLA JENIS SAMPAH & HARGA ACUAN              */}
-              {/* ========================================================= */}
+              {/* HALAMAN 4: KELOLA JENIS SAMPAH & HARGA ACUAN */}
               {adminTab === 'kategori' && (
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
                   <div className="flex items-center gap-2 text-emerald-700 font-bold text-lg mb-4 pb-2 border-b">
@@ -1296,9 +1287,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* ========================================================= */}
-              {/* HALAMAN 5: LAPORAN TRANSAKSI PERIODIK                     */}
-              {/* ========================================================= */}
+              {/* HALAMAN 5: LAPORAN TRANSAKSI PERIODIK */}
               {adminTab === 'laporan' && (
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 print:border-none print:shadow-none print:p-0">
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 pb-4 border-b">
@@ -1694,6 +1683,164 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* MODAL PREVIEW CETAK BUKU TABUNGAN */}
+      {cetakBukuModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 print:hidden">
+          <div className="bg-white rounded-2xl w-full max-w-2xl p-6 relative shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <Book className="w-5 h-5 text-emerald-600" /> Preview Buku Tabungan
+              </h3>
+              <button onClick={() => setCetakBukuModal(null)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto border p-6 rounded-xl bg-white text-sm shadow-inner">
+              <div className="text-center border-b-2 border-black pb-4 mb-4">
+                <h1 className="text-xl font-bold uppercase">Buku Tabungan Bank Sampah</h1>
+                <h2 className="text-lg font-bold">"BERSERI" RW.05</h2>
+                <p className="text-xs">Kelurahan Tambakreja, Kec. Cilacap Selatan</p>
+              </div>
+              
+              <div className="flex justify-between items-end mb-4 font-semibold text-xs">
+                <div>
+                  <p className="mb-1">Nama Nasabah: <span className="font-bold">{cetakBukuModal.nama}</span></p>
+                  <p>Nomor Rekening: <span className="font-bold">{cetakBukuModal.no_rekening}</span></p>
+                </div>
+                <div className="text-right">
+                  <p>RT: <span className="font-bold">{cetakBukuModal.rt}</span></p>
+                </div>
+              </div>
+
+              <table className="w-full border-collapse border border-black text-xs">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border border-black p-2 text-left">Tanggal</th>
+                    <th className="border border-black p-2 text-left">Keterangan</th>
+                    <th className="border border-black p-2 text-right">Masuk (Rp)</th>
+                    <th className="border border-black p-2 text-right">Keluar (Rp)</th>
+                    <th className="border border-black p-2 text-right">Saldo (Rp)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    // Filter transaksi dan urutkan dari yang terlama ke terbaru (Ascending) untuk buku tabungan
+                    const trxWarga = semuaTransaksi.filter(t => t.no_rekening === cetakBukuModal.no_rekening).reverse();
+                    let saldoAkumulasi = 0;
+                    
+                    if (trxWarga.length === 0) {
+                      return <tr><td colSpan="5" className="border border-black p-4 text-center">Belum ada riwayat transaksi.</td></tr>;
+                    }
+
+                    return trxWarga.map(t => {
+                      saldoAkumulasi += t.total_harga;
+                      const isPenarikan = t.jenis_transaksi === 'penarikan' || t.total_harga < 0;
+                      return (
+                        <tr key={t.id}>
+                          <td className="border border-black p-2 whitespace-nowrap">
+                            {t.tanggal?.seconds ? new Date(t.tanggal.seconds * 1000).toLocaleDateString('id-ID') : '-'}
+                          </td>
+                          <td className="border border-black p-2">
+                            {t.kategori_sampah} {isPenarikan ? '' : `(${t.berat_kg} kg)`}
+                          </td>
+                          <td className="border border-black p-2 text-right">
+                            {!isPenarikan && t.total_harga > 0 ? t.total_harga.toLocaleString('id-ID') : '-'}
+                          </td>
+                          <td className="border border-black p-2 text-right">
+                            {isPenarikan ? Math.abs(t.total_harga).toLocaleString('id-ID') : '-'}
+                          </td>
+                          <td className="border border-black p-2 text-right font-bold">
+                            {saldoAkumulasi.toLocaleString('id-ID')}
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-4 flex gap-3 pt-4 border-t">
+              <button 
+                onClick={() => window.print()} 
+                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md transition flex items-center justify-center gap-2"
+              >
+                <Printer className="w-4 h-4" /> Cetak Buku Sekarang
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+
+    {/* ============================================================== */}
+    {/* RENDER KHUSUS CETAK BUKU TABUNGAN (HANYA MUNCUL SAAT DI-PRINT) */}
+    {/* ============================================================== */}
+    {cetakBukuModal && (
+      <div className="hidden print:block w-full bg-white text-black text-sm p-4">
+        <div className="text-center border-b-2 border-black pb-4 mb-4">
+          <h1 className="text-2xl font-bold uppercase">Buku Tabungan Bank Sampah</h1>
+          <h2 className="text-xl font-bold">"BERSERI" RW.05</h2>
+          <p className="text-sm">Kelurahan Tambakreja, Kec. Cilacap Selatan</p>
+        </div>
+        
+        <div className="flex justify-between items-end mb-4 font-semibold text-sm">
+          <div>
+            <p className="mb-1">Nama Nasabah: <span className="font-bold">{cetakBukuModal.nama}</span></p>
+            <p>Nomor Rekening: <span className="font-bold">{cetakBukuModal.no_rekening}</span></p>
+          </div>
+          <div className="text-right">
+            <p>RT: <span className="font-bold">{cetakBukuModal.rt}</span></p>
+          </div>
+        </div>
+
+        <table className="w-full border-collapse border border-black text-sm">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="border border-black p-2 text-left">Tanggal</th>
+              <th className="border border-black p-2 text-left">Keterangan</th>
+              <th className="border border-black p-2 text-right">Masuk (Rp)</th>
+              <th className="border border-black p-2 text-right">Keluar (Rp)</th>
+              <th className="border border-black p-2 text-right">Saldo (Rp)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(() => {
+              const trxWarga = semuaTransaksi.filter(t => t.no_rekening === cetakBukuModal.no_rekening).reverse();
+              let saldoAkumulasi = 0;
+              
+              if (trxWarga.length === 0) {
+                return <tr><td colSpan="5" className="border border-black p-4 text-center">Belum ada riwayat transaksi.</td></tr>;
+              }
+
+              return trxWarga.map(t => {
+                saldoAkumulasi += t.total_harga;
+                const isPenarikan = t.jenis_transaksi === 'penarikan' || t.total_harga < 0;
+                return (
+                  <tr key={t.id}>
+                    <td className="border border-black p-2 whitespace-nowrap">
+                      {t.tanggal?.seconds ? new Date(t.tanggal.seconds * 1000).toLocaleDateString('id-ID') : '-'}
+                    </td>
+                    <td className="border border-black p-2">
+                      {t.kategori_sampah} {isPenarikan ? '' : `(${t.berat_kg} kg)`}
+                    </td>
+                    <td className="border border-black p-2 text-right">
+                      {!isPenarikan && t.total_harga > 0 ? t.total_harga.toLocaleString('id-ID') : '-'}
+                    </td>
+                    <td className="border border-black p-2 text-right">
+                      {isPenarikan ? Math.abs(t.total_harga).toLocaleString('id-ID') : '-'}
+                    </td>
+                    <td className="border border-black p-2 text-right font-bold">
+                      {saldoAkumulasi.toLocaleString('id-ID')}
+                    </td>
+                  </tr>
+                );
+              });
+            })()}
+          </tbody>
+        </table>
+      </div>
+    )}
+    </>
   );
 }
