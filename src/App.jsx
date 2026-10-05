@@ -36,7 +36,7 @@ import {
   LayoutDashboard,
   ArrowDownLeft,
   ArrowUpRight,
-  Book // Icon baru untuk Buku Tabungan
+  Book
 } from 'lucide-react';
 import { 
   tambahNasabah, 
@@ -88,7 +88,7 @@ export default function App() {
   const [editNasabahModal, setEditNasabahModal] = useState(null);
   const [editKategoriModal, setEditKategoriModal] = useState(null);
   const [editTransaksiModal, setEditTransaksiModal] = useState(null);
-  const [cetakBukuModal, setCetakBukuModal] = useState(null); // State Modal Cetak Buku Tabungan
+  const [cetakBukuModal, setCetakBukuModal] = useState(null); 
   const [modalFoto, setModalFoto] = useState(null);
   const [gantiPasswordModal, setGantiPasswordModal] = useState(false);
   const [lupaPasswordModal, setLupaPasswordModal] = useState(false);
@@ -141,6 +141,47 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // =======================================================================
+  // HELPER FUNGSI: MENGHITUNG SALDO REAL AGAR 100% SINKRON DI SEMUA HALAMAN
+  // =======================================================================
+  
+  // 1. Hitung total saldo mutlak (Saldo Migrasi + Total Transaksi)
+  const hitungSaldoReal = (nasabah, listTransaksi) => {
+    if (!nasabah) return 0;
+    const trxWarga = listTransaksi.filter(t => t.no_rekening === nasabah.no_rekening);
+    const totalTrx = trxWarga.reduce((sum, t) => sum + (t.total_harga || 0), 0);
+    
+    // Cek apakah Saldo Migrasi sudah masuk ke sistem transaksi
+    const adaMigrasi = trxWarga.some(t => t.kategori_sampah === 'Saldo Awal / Migrasi');
+    const saldoMigrasi = adaMigrasi ? 0 : (nasabah.saldo || 0); // Jika tidak ada, tambahkan manual
+    
+    return totalTrx + saldoMigrasi;
+  };
+
+  // 2. Menambahkan Row 'Saldo Awal' pada riwayat/buku jika diperlukan
+  const getRiwayatLengkap = (nasabah, riwayatAsli, ascending = false) => {
+    if (!nasabah) return [];
+    let arr = [...riwayatAsli];
+    
+    const adaMigrasi = arr.some(t => t.kategori_sampah === 'Saldo Awal / Migrasi');
+    if (!adaMigrasi && (nasabah.saldo || 0) > 0) {
+      arr.push({
+        id: 'migrasi-manual-' + nasabah.no_rekening,
+        tanggal: { seconds: 0 }, // Ditempatkan paling awal
+        kategori_sampah: 'Saldo Awal / Migrasi',
+        total_harga: nasabah.saldo,
+        berat_kg: 0,
+        jenis_transaksi: 'setor'
+      });
+    }
+    
+    // Urutkan riwayat berdasarkan waktu
+    return arr.sort((a, b) => ascending 
+      ? (a.tanggal?.seconds || 0) - (b.tanggal?.seconds || 0)
+      : (b.tanggal?.seconds || 0) - (a.tanggal?.seconds || 0)
+    );
   };
 
   const tampilkanPesan = (tipe, teks) => {
@@ -458,12 +499,16 @@ export default function App() {
     const nasabahSelected = daftarNasabah.find(n => n.id === formSetor.nasabahId);
     if (!nasabahSelected) return tampilkanPesan('error', 'Pilih nasabah yang valid dari daftar auto-suggest!');
     if (!formSetor.berat_kg || parseFloat(formSetor.berat_kg) <= 0) return tampilkanPesan('error', 'Berat tidak valid!');
+    
     setLoading(true);
     try {
       const berat = parseFloat(formSetor.berat_kg);
       const hargaPerKg = parseFloat(formSetor.hargaCustom);
       const totalHarga = berat * hargaPerKg;
-      const saldoTerbaru = (nasabahSelected.saldo || 0) + totalHarga;
+      
+      // Ambil riwayat real dan kalkulasi total balance baru secara presisi
+      const saldoAktifReal = hitungSaldoReal(nasabahSelected, semuaTransaksi);
+      const saldoTerbaru = saldoAktifReal + totalHarga;
 
       const res = await inputSetorSampah({
         nasabah_doc_id: nasabahSelected.id,
@@ -483,7 +528,7 @@ export default function App() {
           no_hp: nasabahSelected.no_hp || '',
           nama: nasabahSelected.nama,
           no_rekening: nasabahSelected.no_rekening,
-          pesan: `Halo *${nasabahSelected.nama}* (Rek: *${nasabahSelected.no_rekening}*),\n\nSetoran sampah berhasil dicatat di Bank Sampah BERSERI RW.05:\n- Jenis: ${formSetor.kategoriNama}\n- Berat: ${berat} kg\n- Penambahan Saldo: *+Rp ${totalHarga.toLocaleString('id-ID')}*\n- Total Saldo Anda Sekarang: *Rp ${saldoTerbaru.toLocaleString('id-ID')}*\n\nTerima kasih telah berpartisipasi menjaga lingkungan bersama kami! ♻️`
+          pesan: `Halo *${nasabahSelected.nama}* (Rek: *${nasabahSelected.no_rekening}*),\n\nSetoran sampah berhasil dicatat di Bank Sampah BERSERI RW.05:\n- Jenis: ${formSetor.kategoriNama}\n- Berat: ${berat} kg\n- Penambahan Saldo: *+Rp ${totalHarga.toLocaleString('id-ID')}*\n- Total Saldo Anda Sekarang: *Rp ${saldoTerbaru.toLocaleString('id-ID')}*\n\ninformasi lebih lanjut kunjungi website banksampahberseri05.vercel.app\n\nTerima kasih telah berpartisipasi menjaga lingkungan bersama kami! ♻️`
         });
 
         setFormSetor({ nasabahId: '', kategoriNama: '', hargaCustom: '', berat_kg: '', fotoBase64: '' });
@@ -501,9 +546,9 @@ export default function App() {
     const nominal = parseFloat(formTarik.jumlahPenarikan);
     if (!nominal || nominal <= 0) return tampilkanPesan('error', 'Nominal tidak valid!');
     
-    // Hitung saldo terkini secara akurat dari riwayat transaksi langsung agar valid
+    // Hitung saldo terkini secara akurat menggunakan Helper
     const riwayatAktif = await getRiwayatTransaksi(nasabahSelected.no_rekening);
-    const saldoAktifReal = (riwayatAktif || []).reduce((acc, t) => acc + (t.total_harga || 0), 0);
+    const saldoAktifReal = hitungSaldoReal(nasabahSelected, riwayatAktif);
 
     if (nominal > saldoAktifReal) return tampilkanPesan('error', 'Saldo tidak cukup!');
     
@@ -592,11 +637,9 @@ export default function App() {
     return String(n.rt) === String(filterRtNasabah);
   });
 
-  // Akumulasi Total Saldo Semua Nasabah berdasarkan riwayat transaksi langsung agar selalu akurat
+  // Akumulasi Total Saldo Semua Nasabah (Akurat 100%)
   const totalSaldoSemuaNasabah = daftarNasabahTerdfilter.reduce((acc, n) => {
-    const trxWarga = semuaTransaksi.filter(t => t.no_rekening === n.no_rekening);
-    const saldoWargaReal = trxWarga.reduce((sum, t) => sum + (t.total_harga || 0), 0);
-    return acc + Math.max(saldoWargaReal, n.saldo || 0);
+    return acc + hitungSaldoReal(n, semuaTransaksi);
   }, 0);
 
   // Auto-Suggest List Filtering
@@ -639,9 +682,10 @@ export default function App() {
     } finally { setLoading(false); }
   };
 
-  // Hitung total saldo real secara dinamis dari riwayat user yang sedang aktif
-  const saldoTotalRealAktif = riwayatUser.reduce((acc, t) => acc + (t.total_harga || 0), 0);
-  const finalSaldoNasabahAktif = Math.max(saldoTotalRealAktif, nasabahAktif?.saldo || 0);
+  // Saldo total untuk nasabah yang sedang aktif dilihat (User Dashboard)
+  const finalSaldoNasabahAktif = hitungSaldoReal(nasabahAktif, riwayatUser);
+  // Riwayat lengkap (tambah row saldo awal otomatis) untuk dashboard nasabah (Descending)
+  const riwayatTampil = getRiwayatLengkap(nasabahAktif, riwayatUser, false);
 
   const nasabahTarikSelected = daftarNasabah.find(n => n.id === formTarik.nasabahId);
   const totalEstimasi = (formSetor.berat_kg && formSetor.hargaCustom) ? parseFloat(formSetor.berat_kg) * parseFloat(formSetor.hargaCustom) : 0;
@@ -892,9 +936,7 @@ export default function App() {
                           </tr>
                         ) : (
                           daftarNasabahTerdfilter.map((n) => {
-                            const trxListWarga = semuaTransaksi.filter(t => t.no_rekening === n.no_rekening);
-                            const realSaldo = trxListWarga.reduce((sum, t) => sum + (t.total_harga || 0), 0);
-                            const finalSaldo = Math.max(realSaldo, n.saldo || 0);
+                            const finalSaldo = hitungSaldoReal(n, semuaTransaksi);
 
                             return (
                               <tr key={n.id} className="hover:bg-slate-50 transition">
@@ -1075,7 +1117,7 @@ export default function App() {
                                 >
                                   <div>
                                     <span className="font-bold text-emerald-700">{n.no_rekening}</span> - <span className="font-semibold text-slate-800">{n.nama}</span>
-                                    <p className="text-[10px] text-slate-500">RT {n.rt} | Saldo: Rp {(n.saldo || 0).toLocaleString('id-ID')}</p>
+                                    <p className="text-[10px] text-slate-500">RT {n.rt} | Saldo: Rp {hitungSaldoReal(n, semuaTransaksi).toLocaleString('id-ID')}</p>
                                   </div>
                                 </div>
                               ))}
@@ -1182,7 +1224,7 @@ export default function App() {
                                 >
                                   <div>
                                     <span className="font-bold text-rose-700">{n.no_rekening}</span> - <span className="font-semibold text-slate-800">{n.nama}</span>
-                                    <p className="text-[10px] text-slate-500">RT {n.rt} | Saldo: Rp {(n.saldo || 0).toLocaleString('id-ID')}</p>
+                                    <p className="text-[10px] text-slate-500">RT {n.rt} | Saldo: Rp {hitungSaldoReal(n, semuaTransaksi).toLocaleString('id-ID')}</p>
                                   </div>
                                 </div>
                               ))}
@@ -1193,7 +1235,7 @@ export default function App() {
                         {nasabahTarikSelected && (
                           <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
                             <span className="text-[10px] text-amber-800 font-semibold block uppercase">Saldo Aktif Saat Ini</span>
-                            <span className="text-lg font-black text-amber-900">Rp {(nasabahTarikSelected.saldo || 0).toLocaleString('id-ID')}</span>
+                            <span className="text-lg font-black text-amber-900">Rp {hitungSaldoReal(nasabahTarikSelected, semuaTransaksi).toLocaleString('id-ID')}</span>
                           </div>
                         )}
                         <div>
@@ -1412,7 +1454,7 @@ export default function App() {
                           </tr>
                         </thead>
                         <tbody className="divide-y text-sm">
-                          {riwayatUser.map((t) => {
+                          {riwayatTampil.map((t) => {
                             const isPenarikan = t.jenis_transaksi === 'penarikan' || (t.total_harga < 0);
                             return (
                               <tr key={t.id} className="hover:bg-slate-50">
@@ -1724,15 +1766,15 @@ export default function App() {
                 </thead>
                 <tbody>
                   {(() => {
-                    // Filter transaksi dan urutkan dari yang terlama ke terbaru (Ascending) untuk buku tabungan
-                    const trxWarga = semuaTransaksi.filter(t => t.no_rekening === cetakBukuModal.no_rekening).reverse();
+                    const trxWargaMentah = semuaTransaksi.filter(t => t.no_rekening === cetakBukuModal.no_rekening);
+                    const riwayatCetak = getRiwayatLengkap(cetakBukuModal, trxWargaMentah, true); // true = Ascending (Terlama ke terbaru)
+
                     let saldoAkumulasi = 0;
-                    
-                    if (trxWarga.length === 0) {
+                    if (riwayatCetak.length === 0) {
                       return <tr><td colSpan="5" className="border border-black p-4 text-center">Belum ada riwayat transaksi.</td></tr>;
                     }
 
-                    return trxWarga.map(t => {
+                    return riwayatCetak.map(t => {
                       saldoAkumulasi += t.total_harga;
                       const isPenarikan = t.jenis_transaksi === 'penarikan' || t.total_harga < 0;
                       return (
@@ -1741,7 +1783,7 @@ export default function App() {
                             {t.tanggal?.seconds ? new Date(t.tanggal.seconds * 1000).toLocaleDateString('id-ID') : '-'}
                           </td>
                           <td className="border border-black p-2">
-                            {t.kategori_sampah} {isPenarikan ? '' : `(${t.berat_kg} kg)`}
+                            {t.kategori_sampah} {isPenarikan || t.berat_kg === 0 ? '' : `(${t.berat_kg} kg)`}
                           </td>
                           <td className="border border-black p-2 text-right">
                             {!isPenarikan && t.total_harga > 0 ? t.total_harga.toLocaleString('id-ID') : '-'}
@@ -1806,14 +1848,15 @@ export default function App() {
           </thead>
           <tbody>
             {(() => {
-              const trxWarga = semuaTransaksi.filter(t => t.no_rekening === cetakBukuModal.no_rekening).reverse();
+              const trxWargaMentah = semuaTransaksi.filter(t => t.no_rekening === cetakBukuModal.no_rekening);
+              const riwayatCetak = getRiwayatLengkap(cetakBukuModal, trxWargaMentah, true);
               let saldoAkumulasi = 0;
               
-              if (trxWarga.length === 0) {
+              if (riwayatCetak.length === 0) {
                 return <tr><td colSpan="5" className="border border-black p-4 text-center">Belum ada riwayat transaksi.</td></tr>;
               }
 
-              return trxWarga.map(t => {
+              return riwayatCetak.map(t => {
                 saldoAkumulasi += t.total_harga;
                 const isPenarikan = t.jenis_transaksi === 'penarikan' || t.total_harga < 0;
                 return (
@@ -1822,7 +1865,7 @@ export default function App() {
                       {t.tanggal?.seconds ? new Date(t.tanggal.seconds * 1000).toLocaleDateString('id-ID') : '-'}
                     </td>
                     <td className="border border-black p-2">
-                      {t.kategori_sampah} {isPenarikan ? '' : `(${t.berat_kg} kg)`}
+                      {t.kategori_sampah} {isPenarikan || t.berat_kg === 0 ? '' : `(${t.berat_kg} kg)`}
                     </td>
                     <td className="border border-black p-2 text-right">
                       {!isPenarikan && t.total_harga > 0 ? t.total_harga.toLocaleString('id-ID') : '-'}
