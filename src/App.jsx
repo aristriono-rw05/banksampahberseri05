@@ -402,16 +402,44 @@ export default function App() {
   };
 
   // --- KELOLA NASABAH ---
+  // --- KELOLA NASABAH ---
   const handleTambahNasabah = async (e) => {
     e.preventDefault();
     if (!formNasabah.nama.trim()) return tampilkanPesan('error', 'Nama wajib diisi!');
     setLoading(true);
     try {
-      const autoNoRek = `05-${String(daftarNasabah.length + 1).padStart(3, '0')}`;
-      const res = await tambahNasabah({ no_rekening: autoNoRek, nama: formNasabah.nama, rt: formNasabah.rt, no_hp: formNasabah.no_hp, saldo: 0 });
+      // 1. Filter nasabah yang hanya berada di RT yang sama
+      const nasabahSatuRt = daftarNasabah.filter(n => n.rt === formNasabah.rt);
+      let maxUrut = 0;
+      
+      // 2. Cari nomor urut paling besar di RT tersebut agar tidak ganda
+      nasabahSatuRt.forEach(n => {
+        if (n.no_rekening && n.no_rekening.includes('/')) {
+          const parts = n.no_rekening.split('/');
+          const noUrut = parseInt(parts[parts.length - 1], 10); // Ambil angka paling belakang
+          if (!isNaN(noUrut) && noUrut > maxUrut) {
+            maxUrut = noUrut;
+          }
+        }
+      });
+      
+      // 3. Tambah 1 dari urutan terbesar, format jadi 3 digit (contoh: 001, 002)
+      const urutanBaru = String(maxUrut + 1).padStart(3, '0');
+      
+      // 4. Gabungkan menjadi format BSB05/RTXX/XXX
+      const autoNoRek = `BSB05/RT${formNasabah.rt}/${urutanBaru}`;
+
+      const res = await tambahNasabah({ 
+        no_rekening: autoNoRek, 
+        nama: formNasabah.nama, 
+        rt: formNasabah.rt, 
+        no_hp: formNasabah.no_hp, 
+        saldo: 0 
+      });
+
       if (res.success) {
         tampilkanPesan('success', `Berhasil! No. Rek: ${autoNoRek}`);
-        setFormNasabah({ nama: '', rt: '01', no_hp: '' });
+        setFormNasabah({ nama: '', rt: '01', no_hp: '' }); // Reset form
         loadData();
       }
     } finally { setLoading(false); }
@@ -437,6 +465,7 @@ export default function App() {
       } finally { setLoading(false); }
     }
   };
+  
 
   // --- KELOLA TRANSAKSI + NOTIFIKASI WHATSAPP ---
   const handlePilihKategori = (e) => {
