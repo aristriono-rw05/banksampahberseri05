@@ -147,31 +147,36 @@ export default function App() {
   // HELPER FUNGSI: MENGHITUNG SALDO REAL AGAR 100% SINKRON DI SEMUA HALAMAN
   // =======================================================================
   
-  // 1. Hitung total saldo mutlak (Saldo Migrasi + Total Transaksi)
+  // 1. Hitung total saldo mutlak dengan Rumus Selisih
   const hitungSaldoReal = (nasabah, listTransaksi) => {
     if (!nasabah) return 0;
     const trxWarga = listTransaksi.filter(t => t.no_rekening === nasabah.no_rekening);
     const totalTrx = trxWarga.reduce((sum, t) => sum + (t.total_harga || 0), 0);
     
-    // Cek apakah Saldo Migrasi sudah masuk ke sistem transaksi
-    const adaMigrasi = trxWarga.some(t => t.kategori_sampah === 'Saldo Awal / Migrasi');
-    const saldoMigrasi = adaMigrasi ? 0 : (nasabah.saldo || 0); // Jika tidak ada, tambahkan manual
+    // Cari selisih. Jika saldo profil lebih besar dari total riwayat transaksi,
+    // berarti sisa selisihnya adalah murni Saldo Migrasi/Awal yang belum dicatat.
+    const selisih = (nasabah.saldo || 0) - totalTrx;
+    const saldoMigrasi = selisih > 0 ? selisih : 0;
     
     return totalTrx + saldoMigrasi;
   };
 
-  // 2. Menambahkan Row 'Saldo Awal' pada riwayat/buku jika diperlukan
+  // 2. Menambahkan Row 'Saldo Awal' HANYA jika ada selisih (tidak ganda)
   const getRiwayatLengkap = (nasabah, riwayatAsli, ascending = false) => {
     if (!nasabah) return [];
     let arr = [...riwayatAsli];
     
-    const adaMigrasi = arr.some(t => t.kategori_sampah === 'Saldo Awal / Migrasi');
-    if (!adaMigrasi && (nasabah.saldo || 0) > 0) {
+    // Hitung total dari riwayat asli
+    const totalTrx = arr.reduce((sum, t) => sum + (t.total_harga || 0), 0);
+    const selisih = (nasabah.saldo || 0) - totalTrx;
+    
+    // Jika ada selisih positif, jadikan baris Saldo Awal / Migrasi
+    if (selisih > 0) {
       arr.push({
         id: 'migrasi-manual-' + nasabah.no_rekening,
-        tanggal: { seconds: 0 }, // Ditempatkan paling awal
+        tanggal: { seconds: 0 }, // Waktu 0 agar selalu tampil paling atas/awal
         kategori_sampah: 'Saldo Awal / Migrasi',
-        total_harga: nasabah.saldo,
+        total_harga: selisih,
         berat_kg: 0,
         jenis_transaksi: 'setor'
       });
@@ -402,7 +407,6 @@ export default function App() {
   };
 
   // --- KELOLA NASABAH ---
-  // --- KELOLA NASABAH ---
   const handleTambahNasabah = async (e) => {
     e.preventDefault();
     if (!formNasabah.nama.trim()) return tampilkanPesan('error', 'Nama wajib diisi!');
@@ -416,7 +420,7 @@ export default function App() {
       nasabahSatuRt.forEach(n => {
         if (n.no_rekening && n.no_rekening.includes('/')) {
           const parts = n.no_rekening.split('/');
-          const noUrut = parseInt(parts[parts.length - 1], 10); // Ambil angka paling belakang
+          const noUrut = parseInt(parts[parts.length - 1], 10);
           if (!isNaN(noUrut) && noUrut > maxUrut) {
             maxUrut = noUrut;
           }
@@ -439,7 +443,7 @@ export default function App() {
 
       if (res.success) {
         tampilkanPesan('success', `Berhasil! No. Rek: ${autoNoRek}`);
-        setFormNasabah({ nama: '', rt: '01', no_hp: '' }); // Reset form
+        setFormNasabah({ nama: '', rt: '01', no_hp: '' });
         loadData();
       }
     } finally { setLoading(false); }
@@ -466,7 +470,6 @@ export default function App() {
     }
   };
   
-
   // --- KELOLA TRANSAKSI + NOTIFIKASI WHATSAPP ---
   const handlePilihKategori = (e) => {
     const namaSelected = e.target.value;
@@ -571,42 +574,67 @@ export default function App() {
   const handlePenarikanSaldo = async (e) => {
     e.preventDefault();
     const nasabahSelected = daftarNasabah.find(n => n.id === formTarik.nasabahId);
-    if (!nasabahSelected) return tampilkanPesan('error', 'Pilih nasabah yang valid dari daftar auto-suggest!');
-    const nominal = parseFloat(formTarik.jumlahPenarikan);
-    if (!nominal || nominal <= 0) return tampilkanPesan('error', 'Nominal tidak valid!');
     
-    // Hitung saldo terkini secara akurat menggunakan Helper
-    const riwayatAktif = await getRiwayatTransaksi(nasabahSelected.no_rekening);
-    const saldoAktifReal = hitungSaldoReal(nasabahSelected, riwayatAktif);
-
-    if (nominal > saldoAktifReal) return tampilkanPesan('error', 'Saldo tidak cukup!');
+    if (!nasabahSelected) {
+      return tampilkanPesan('error', 'Pilih nasabah yang valid dari daftar auto-suggest!');
+    }
+    
+    const nominal = parseFloat(formTarik.jumlahPenarikan);
+    if (!nominal || nominal <= 0) {
+      return tampilkanPesan('error', 'Nominal penarikan tidak valid!');
+    }
     
     setLoading(true);
     try {
+      // 1. Ambil riwayat dan pastikan saldo cukup
+      const riwayatAktif = await getRiwayatTransaksi(nasabahSelected.no_rekening);
+      const saldoAktifReal = hitungSaldoReal(nasabahSelected, riwayatAktif);
+
+      if (nominal > saldoAktifReal) {
+        setLoading(false);
+        return tampilkanPesan('error', `Saldo tidak cukup! Sisa saldo aktif: Rp ${saldoAktifReal.toLocaleString('id-ID')}`);
+      }
+      
       const saldoTerbaru = saldoAktifReal - nominal;
+      
+      // 2. Kirim ke Firebase (Pastikan keterangan tidak undefined)
+      const keteranganAman = formTarik.keterangan ? formTarik.keterangan.trim() : 'Pengambilan Tabungan';
+
       const res = await inputPenarikanSaldo({
         nasabah_doc_id: nasabahSelected.id,
         no_rekening: nasabahSelected.no_rekening,
         nama_nasabah: nasabahSelected.nama,
         jumlah_penarikan: nominal,
-        keterangan: formTarik.keterangan
+        keterangan: keteranganAman
       });
 
-      if (res.success) {
+      // 3. Tangani hasil respon
+      if (res && res.success) {
         tampilkanPesan('success', `Tarik Rp ${nominal.toLocaleString('id-ID')} berhasil!`);
 
         setWhatsappModal({
           no_hp: nasabahSelected.no_hp || '',
           nama: nasabahSelected.nama,
           no_rekening: nasabahSelected.no_rekening,
-          pesan: `Halo *${nasabahSelected.nama}* (Rek: *${nasabahSelected.no_rekening}*),\n\nTelah dilakukan penarikan tabungan di Bank Sampah BERSERI RW.05:\n- Nominal Penarikan: *-Rp ${nominal.toLocaleString('id-ID')}*\n- Keterangan: ${formTarik.keterangan || 'Pengambilan Tabungan'}\n- Sisa Saldo Anda Sekarang: *Rp ${saldoTerbaru.toLocaleString('id-ID')}*\n\nTerima kasih.`
+          pesan: `Halo *${nasabahSelected.nama}* (Rek: *${nasabahSelected.no_rekening}*),\n\nTelah dilakukan penarikan tabungan di Bank Sampah BERSERI RW.05:\n- Nominal Penarikan: *-Rp ${nominal.toLocaleString('id-ID')}*\n- Keterangan: ${keteranganAman}\n- Sisa Saldo Anda Sekarang: *Rp ${saldoTerbaru.toLocaleString('id-ID')}*\n\nTerima kasih.`
         });
 
         setFormTarik({ nasabahId: '', jumlahPenarikan: '', keterangan: '' });
         setSearchTarik('');
         loadData();
+      } else {
+        // Jika backend merespon gagal
+        console.error("Gagal dari backend:", res);
+        tampilkanPesan('error', 'Gagal! Pastikan koneksi internet stabil atau cek console.');
       }
-    } finally { setLoading(false); }
+
+    } catch (error) {
+      // Tangkap jika terjadi error/crash pada sistem
+      console.error("Error Penarikan:", error);
+      tampilkanPesan('error', `Sistem Error: ${error.message || 'Gagal menyimpan transaksi.'}`);
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const handleSaveEditTransaksi = async (e) => {
@@ -1096,7 +1124,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* HALAMAN 3: TRANSAKSI (SETOR, TARIK, PENDAFTARAN) */}
+              {/* HAL কতটা AMAN 3: TRANSAKSI (SETOR, TARIK, PENDAFTARAN) */}
               {adminTab === 'transaksi' && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   
@@ -1433,7 +1461,7 @@ export default function App() {
             <div className="space-y-6 max-w-4xl mx-auto print:hidden">
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 text-center">
                 <h2 className="text-xl font-bold text-slate-800 mb-2">Cek Tabungan Sampah Anda</h2>
-                <p className="text-xs text-slate-500 mb-6">Masukkan <strong>Nomor Rekening</strong> (Contoh: 05-001) atau <strong>Nama Anda</strong> untuk mengecek saldo.</p>
+                <p className="text-xs text-slate-500 mb-6">Masukkan <strong>Nomor Rekening</strong> (Contoh: BSB05/RT01/001) atau <strong>Nama Anda</strong> untuk mengecek saldo.</p>
                 <form onSubmit={handleCariNasabah} className="flex gap-2 max-w-md mx-auto">
                   <input type="text" placeholder="Ketik No. Rekening atau Nama..." value={keywordCari} onChange={(e) => setKeywordCari(e.target.value)} className="flex-1 p-3 border rounded-xl text-sm bg-slate-50" required />
                   <button type="submit" disabled={loading} className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition flex items-center gap-2 text-sm"><Search className="w-4 h-4" /> Cari</button>
@@ -1569,7 +1597,7 @@ export default function App() {
               <textarea
                 value={importText}
                 onChange={(e) => setImportText(e.target.value)}
-                placeholder={`05-001\t01\tBudi Santoso\t50000\n05-002\t02\tSiti Aminah\t25000`}
+                placeholder={`BSB05/RT01/001\t01\tBudi Santoso\t50000\nBSB05/RT02/001\t02\tSiti Aminah\t25000`}
                 className="w-full h-48 p-3 border rounded-xl text-xs font-mono whitespace-pre overflow-x-auto bg-slate-50 focus:ring-2 focus:ring-blue-500 text-left"
                 required
               ></textarea>

@@ -163,33 +163,41 @@ export const inputSetorSampah = async (data) => {
 
 export const inputPenarikanSaldo = async (data) => {
   try {
-    const nasabahList = await getAllNasabah();
-    const currentNasabah = nasabahList.find(n => n.id === data.nasabah_doc_id);
-
-    if (!currentNasabah) return { success: false, error: "Nasabah tidak ditemukan." };
-    if ((currentNasabah.saldo || 0) < data.jumlah_penarikan) return { success: false, error: "Saldo tidak mencukupi!" };
-
-    await addDoc(collection(db, "transaksi"), {
-      nasabah_doc_id: data.nasabah_doc_id,
-      no_rekening: data.no_rekening,
-      nama_nasabah: data.nama_nasabah,
-      kategori_sampah: "Penarikan Tabungan",
-      jenis_transaksi: "penarikan",
+    // 1. Bersihkan data dari kemungkinan 'undefined' (Firebase benci undefined)
+    const trxData = {
+      nasabah_doc_id: data.nasabah_doc_id || "",
+      no_rekening: data.no_rekening || "",
+      nama_nasabah: data.nama_nasabah || "",
+      jenis_transaksi: 'penarikan',
+      kategori_sampah: data.keterangan || "Pengambilan Tabungan",
       berat_kg: 0,
       harga_per_kg: 0,
-      total_harga: -Math.abs(data.jumlah_penarikan),
-      keterangan: data.keterangan || "Pengambilan uang tabungan",
-      foto_bukti: "",
-      tanggal: serverTimestamp()
-    });
+      total_harga: -(Math.abs(data.jumlah_penarikan || 0)), // Memaksa jadi angka minus
+      tanggal: new Date()
+    };
 
-    const nasabahRef = doc(db, "nasabah", data.nasabah_doc_id);
-    await updateDoc(nasabahRef, {
-      saldo: (currentNasabah.saldo || 0) - data.jumlah_penarikan
-    });
+    // 2. Simpan Riwayat Penarikan
+    const trxRef = await addDoc(collection(db, 'transaksi'), trxData);
 
-    return { success: true };
+    // 3. Potong Saldo di Profil Nasabah
+    if (data.nasabah_doc_id) {
+      const nasabahRef = doc(db, 'nasabah', data.nasabah_doc_id);
+      const nasabahSnap = await getDoc(nasabahRef);
+
+      if (nasabahSnap.exists()) {
+        const saldoSekarang = nasabahSnap.data().saldo || 0;
+        const nominalTarik = Math.abs(data.jumlah_penarikan || 0);
+        
+        await updateDoc(nasabahRef, {
+          saldo: saldoSekarang - nominalTarik
+        });
+      }
+    }
+
+    return { success: true, id: trxRef.id };
   } catch (error) {
+    // Jika masih gagal, ini akan menampilkan error ASLI di layar (bukan cuma Object)
+    console.error("Gagal simpan penarikan di BankService: ", error);
     return { success: false, error: error.message };
   }
 };
