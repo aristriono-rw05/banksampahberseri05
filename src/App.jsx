@@ -1,71 +1,32 @@
 // src/App.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  UserPlus, 
-  History, 
-  Search, 
-  Camera, 
-  Trash2, 
-  CheckCircle2, 
-  AlertCircle, 
-  Image as ImageIcon,
-  Users,
-  Building2,
-  ShieldCheck,
-  UserCheck,
-  Lock,
-  LogOut,
-  Tag,
-  Plus,
-  MapPin,
-  ChevronRight,
-  Wallet,
-  ExternalLink,
-  FileText,
-  Printer,
-  Calendar,
-  Crown,
-  Edit2,
-  X,
-  Key,
-  HelpCircle,
-  MessageSquare,
-  FileSpreadsheet,
-  ListOrdered,
-  Filter,
-  LayoutDashboard,
-  ArrowDownLeft,
-  ArrowUpRight,
-  Book
+  UserPlus, History, Search, Camera, Trash2, CheckCircle2, AlertCircle, Image as ImageIcon,
+  Users, Building2, ShieldCheck, UserCheck, Lock, LogOut, Tag, Plus, MapPin, ChevronRight,
+  Wallet, ExternalLink, FileText, Printer, Calendar, Crown, Edit2, X, Key, HelpCircle,
+  MessageSquare, FileSpreadsheet, ListOrdered, Filter, LayoutDashboard, ArrowDownLeft,
+  ArrowUpRight, Book, UserCog
 } from 'lucide-react';
 import { 
-  tambahNasabah, 
-  getAllNasabah, 
-  cariNasabahMulti, 
-  inputSetorSampah, 
-  inputPenarikanSaldo,
-  getRiwayatTransaksi,
-  getAllTransaksi,
-  getKategoriSampah,
-  tambahKategoriSampah,
-  hapusKategoriSampah,
-  updateKategoriSampah,
-  updateNasabah,
-  hapusNasabah,
-  updateTransaksi,
-  hapusTransaksi,
-  getPasswords,        
-  updatePassword       
+  tambahNasabah, getAllNasabah, cariNasabahMulti, inputSetorSampah, inputPenarikanSaldo,
+  getRiwayatTransaksi, getAllTransaksi, getKategoriSampah, tambahKategoriSampah,
+  hapusKategoriSampah, updateKategoriSampah, updateNasabah, hapusNasabah,
+  updateTransaksi, hapusTransaksi, getPasswords, updatePassword,
+  loginAdmin, logoutAdmin, subscribeAuth, tambahAkunPetugas
 } from './services/BankService';
 
 export default function App() {
   const [activeRole, setActiveRole] = useState('user');
   const [adminTab, setAdminTab] = useState('nasabah');
 
-  const [currentRoleLoggedIn, setCurrentRoleLoggedIn] = useState(
-    sessionStorage.getItem('userRole') || null
-  );
+  const [currentRoleLoggedIn, setCurrentRoleLoggedIn] = useState(null);
+  
+  // State Form Login Firebase
+  const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
+  
+  // State Form Tambah Petugas Baru
+  const [formPetugas, setFormPetugas] = useState({ email: '', password: '' });
 
   // State Data Master
   const [daftarNasabah, setDaftarNasabah] = useState([]);
@@ -113,7 +74,7 @@ export default function App() {
 
   const [previewFoto, setPreviewFoto] = useState('');
   
-  // State Form Ganti Password
+  // State Form Ganti Password (Tetap dipertahankan)
   const [formPassword, setFormPassword] = useState({ lama: '', baru: '', konfirmasi: '' });
 
   // Filter & User Search
@@ -123,8 +84,25 @@ export default function App() {
   const [nasabahAktif, setNasabahAktif] = useState(null);
   const [riwayatUser, setRiwayatUser] = useState([]);
 
+  // ==========================================================
+  // EFEK SAAT HALAMAN DIMUAT (CEK LOGIN OTOMATIS)
+  // ==========================================================
   useEffect(() => {
     loadData();
+    const unsubscribe = subscribeAuth((user) => {
+      if (user) {
+        if (user.email === 'aris.triono.2024@gmail.com') {
+          setCurrentRoleLoggedIn('superadmin');
+        } else {
+          setCurrentRoleLoggedIn('admin'); 
+        }
+      } else {
+        setCurrentRoleLoggedIn(null);
+      }
+    });
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   const loadData = async () => {
@@ -144,45 +122,32 @@ export default function App() {
   };
 
   // =======================================================================
-  // HELPER FUNGSI: MENGHITUNG SALDO REAL AGAR 100% SINKRON DI SEMUA HALAMAN
+  // HELPER FUNGSI: MENGHITUNG SALDO REAL
   // =======================================================================
-  
-  // 1. Hitung total saldo mutlak dengan Rumus Selisih
   const hitungSaldoReal = (nasabah, listTransaksi) => {
     if (!nasabah) return 0;
     const trxWarga = listTransaksi.filter(t => t.no_rekening === nasabah.no_rekening);
     const totalTrx = trxWarga.reduce((sum, t) => sum + (t.total_harga || 0), 0);
-    
-    // Cari selisih. Jika saldo profil lebih besar dari total riwayat transaksi,
-    // berarti sisa selisihnya adalah murni Saldo Migrasi/Awal yang belum dicatat.
     const selisih = (nasabah.saldo || 0) - totalTrx;
     const saldoMigrasi = selisih > 0 ? selisih : 0;
-    
     return totalTrx + saldoMigrasi;
   };
 
-  // 2. Menambahkan Row 'Saldo Awal' HANYA jika ada selisih (tidak ganda)
   const getRiwayatLengkap = (nasabah, riwayatAsli, ascending = false) => {
     if (!nasabah) return [];
     let arr = [...riwayatAsli];
-    
-    // Hitung total dari riwayat asli
     const totalTrx = arr.reduce((sum, t) => sum + (t.total_harga || 0), 0);
     const selisih = (nasabah.saldo || 0) - totalTrx;
-    
-    // Jika ada selisih positif, jadikan baris Saldo Awal / Migrasi
     if (selisih > 0) {
       arr.push({
         id: 'migrasi-manual-' + nasabah.no_rekening,
-        tanggal: { seconds: 0 }, // Waktu 0 agar selalu tampil paling atas/awal
+        tanggal: { seconds: 0 }, 
         kategori_sampah: 'Saldo Awal / Migrasi',
         total_harga: selisih,
         berat_kg: 0,
         jenis_transaksi: 'setor'
       });
     }
-    
-    // Urutkan riwayat berdasarkan waktu
     return arr.sort((a, b) => ascending 
       ? (a.tanggal?.seconds || 0) - (b.tanggal?.seconds || 0)
       : (b.tanggal?.seconds || 0) - (a.tanggal?.seconds || 0)
@@ -194,40 +159,44 @@ export default function App() {
     setTimeout(() => setPesan({ tipe: '', teks: '' }), 4000);
   };
 
-  // --- HANDLER LOGIN ---
+  // ==========================================================
+  // HANDLER LOGIN, LOGOUT & REGISTER FIREBASE
+  // ==========================================================
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
-    try {
-      const passwordsDB = await getPasswords();
-      if (passwordInput === passwordsDB.superadmin) {
-        setCurrentRoleLoggedIn('superadmin');
-        sessionStorage.setItem('userRole', 'superadmin');
-        tampilkanPesan('success', 'Berhasil Login sebagai Super Admin!');
-        setPasswordInput('');
-      } else if (passwordInput === passwordsDB.admin) {
-        setCurrentRoleLoggedIn('admin');
-        sessionStorage.setItem('userRole', 'admin');
-        tampilkanPesan('success', 'Berhasil Login sebagai Admin!');
-        setPasswordInput('');
-      } else {
-        tampilkanPesan('error', 'Password Salah! Akses Ditolak.');
-      }
-    } catch (err) {
-      tampilkanPesan('error', 'Terjadi kesalahan sistem login.');
-    } finally {
-      setLoading(false);
+    const res = await loginAdmin(emailInput, passwordInput);
+    if (res.success) {
+      tampilkanPesan('success', 'Berhasil Login!');
+      setEmailInput('');
+      setPasswordInput('');
+    } else {
+      tampilkanPesan('error', res.error || 'Email atau Password salah.');
     }
+    setLoading(false);
   };
 
-  const handleLogout = () => {
-    setCurrentRoleLoggedIn(null);
-    sessionStorage.removeItem('userRole');
+  const handleLogout = async () => {
+    await logoutAdmin();
     setActiveRole('user');
     tampilkanPesan('success', 'Berhasil Keluar dari Sistem.');
   };
 
-  // --- HANDLER GANTI PASSWORD ---
+  const handleTambahPetugas = async (e) => {
+    e.preventDefault();
+    if (formPetugas.password.length < 6) return tampilkanPesan('error', 'Password minimal 6 karakter!');
+    
+    setLoading(true);
+    const res = await tambahAkunPetugas(formPetugas.email, formPetugas.password);
+    if (res.success) {
+      tampilkanPesan('success', `Akun petugas ${formPetugas.email} berhasil dibuat!`);
+      setFormPetugas({ email: '', password: '' });
+    } else {
+      tampilkanPesan('error', `Gagal mendaftar: ${res.error}`);
+    }
+    setLoading(false);
+  };
+
   const handleGantiPassword = async (e) => {
     e.preventDefault();
     if (formPassword.baru !== formPassword.konfirmasi) return tampilkanPesan('error', 'Konfirmasi password baru tidak cocok!');
@@ -254,7 +223,6 @@ export default function App() {
     } finally { setLoading(false); }
   };
 
-  // --- HANDLER IMPORT EXCEL (SUPERADMIN) ---
   const handleImportExcel = async (e) => {
     e.preventDefault();
     if (!importText.trim()) return tampilkanPesan('error', 'Kotak data masih kosong!');
@@ -267,13 +235,11 @@ export default function App() {
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i].trim();
         if (!row) continue;
-        
         const cols = row.split(/\t|,|;/);
         
         if (cols.length >= 3) {
           const no_rekening = cols[0] ? cols[0].trim() : '';
           const rt = cols[1] ? cols[1].trim() : '01';
-          
           let nama = '';
           let saldoRaw = '';
 
@@ -294,32 +260,11 @@ export default function App() {
           
           if (existingNasabah) {
             const totalSaldoBaru = (existingNasabah.saldo || 0) + saldoAwal;
-            await updateNasabah(existingNasabah.id, { 
-              nama: nama || existingNasabah.nama, 
-              rt: rt || existingNasabah.rt, 
-              saldo: totalSaldoBaru 
-            });
+            await updateNasabah(existingNasabah.id, { nama: nama || existingNasabah.nama, rt: rt || existingNasabah.rt, saldo: totalSaldoBaru });
           } else {
-            await tambahNasabah({ 
-              no_rekening, 
-              rt, 
-              nama, 
-              saldo: saldoAwal, 
-              no_hp: '',
-              total_sampah_kg: 0 
-            });
-
+            await tambahNasabah({ no_rekening, rt, nama, saldo: saldoAwal, no_hp: '', total_sampah_kg: 0 });
             if (saldoAwal > 0) {
-              await inputSetorSampah({
-                nasabah_doc_id: no_rekening,
-                no_rekening: no_rekening,
-                nama_nasabah: nama,
-                kategori_sampah: 'Saldo Awal / Migrasi',
-                berat_kg: 0,
-                harga_per_kg: 0,
-                total_harga: saldoAwal,
-                foto_bukti: ''
-              });
+              await inputSetorSampah({ nasabah_doc_id: no_rekening, no_rekening: no_rekening, nama_nasabah: nama, kategori_sampah: 'Saldo Awal / Migrasi', berat_kg: 0, harga_per_kg: 0, total_harga: saldoAwal, foto_bukti: '' });
             }
           }
           imported++;
@@ -327,35 +272,19 @@ export default function App() {
       }
       
       tampilkanPesan('success', `${imported} Data Warga & Saldo Berhasil Di-Import!`);
-      setImportModal(false);
-      setImportText('');
-      loadData();
+      setImportModal(false); setImportText(''); loadData();
     } catch (err) {
-      console.error(err);
       tampilkanPesan('error', 'Format salah. Pastikan kolom: No. Rekening | RT | Nama | Saldo Awal.');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
-  // --- HANDLER LABA RUGI & PENJUALAN ---
   const handleTambahPenjualan = (e) => {
     e.preventDefault();
     if (!formPenjualan.pembeli || !formPenjualan.totalUangMasuk) return tampilkanPesan('error', 'Wajib diisi!');
-    
-    const itemBaru = {
-      id: Date.now().toString(),
-      tanggal: formPenjualan.tanggal || new Date().toISOString().split('T')[0],
-      pembeli: formPenjualan.pembeli,
-      kategori: formPenjualan.kategori || 'Campur/Umum',
-      berat: Number(formPenjualan.berat || 0),
-      totalUangMasuk: Number(formPenjualan.totalUangMasuk)
-    };
-
+    const itemBaru = { id: Date.now().toString(), tanggal: formPenjualan.tanggal || new Date().toISOString().split('T')[0], pembeli: formPenjualan.pembeli, kategori: formPenjualan.kategori || 'Campur/Umum', berat: Number(formPenjualan.berat || 0), totalUangMasuk: Number(formPenjualan.totalUangMasuk) };
     const updatedList = [itemBaru, ...daftarPenjualan];
     setDaftarPenjualan(updatedList);
     localStorage.setItem('penjualanList', JSON.stringify(updatedList));
-
     tampilkanPesan('success', `Hasil penjualan Rp ${itemBaru.totalUangMasuk.toLocaleString('id-ID')} berhasil dicatat!`);
     setFormPenjualan({ tanggal: '', pembeli: '', kategori: '', berat: '', totalUangMasuk: '' });
   };
@@ -364,24 +293,18 @@ export default function App() {
     if (currentRoleLoggedIn !== 'superadmin') return tampilkanPesan('error', 'Akses ditolak! Hanya Super Admin.');
     if (window.confirm('Yakin ingin menghapus catatan penjualan ini?')) {
       const updatedList = daftarPenjualan.filter(p => p.id !== id);
-      setDaftarPenjualan(updatedList);
-      localStorage.setItem('penjualanList', JSON.stringify(updatedList));
+      setDaftarPenjualan(updatedList); localStorage.setItem('penjualanList', JSON.stringify(updatedList));
       tampilkanPesan('success', 'Catatan penjualan dihapus.');
     }
   };
 
-  // --- KELOLA KATEGORI ---
   const handleTambahKategori = async (e) => {
     e.preventDefault();
     if (!formKategori.nama || !formKategori.harga) return tampilkanPesan('error', 'Wajib diisi!');
     setLoading(true);
     try {
       const res = await tambahKategoriSampah({ nama: formKategori.nama, harga: Number(formKategori.harga) });
-      if (res.success) {
-        tampilkanPesan('success', `Jenis sampah "${formKategori.nama}" ditambahkan!`);
-        setFormKategori({ nama: '', harga: '' });
-        loadData();
-      }
+      if (res.success) { tampilkanPesan('success', `Jenis sampah "${formKategori.nama}" ditambahkan!`); setFormKategori({ nama: '', harga: '' }); loadData(); }
     } finally { setLoading(false); }
   };
 
@@ -406,46 +329,25 @@ export default function App() {
     }
   };
 
-  // --- KELOLA NASABAH ---
   const handleTambahNasabah = async (e) => {
     e.preventDefault();
     if (!formNasabah.nama.trim()) return tampilkanPesan('error', 'Nama wajib diisi!');
     setLoading(true);
     try {
-      // 1. Filter nasabah yang hanya berada di RT yang sama
       const nasabahSatuRt = daftarNasabah.filter(n => n.rt === formNasabah.rt);
       let maxUrut = 0;
-      
-      // 2. Cari nomor urut paling besar di RT tersebut agar tidak ganda
       nasabahSatuRt.forEach(n => {
         if (n.no_rekening && n.no_rekening.includes('/')) {
           const parts = n.no_rekening.split('/');
           const noUrut = parseInt(parts[parts.length - 1], 10);
-          if (!isNaN(noUrut) && noUrut > maxUrut) {
-            maxUrut = noUrut;
-          }
+          if (!isNaN(noUrut) && noUrut > maxUrut) maxUrut = noUrut;
         }
       });
-      
-      // 3. Tambah 1 dari urutan terbesar, format jadi 3 digit (contoh: 001, 002)
       const urutanBaru = String(maxUrut + 1).padStart(3, '0');
-      
-      // 4. Gabungkan menjadi format BSB05/RTXX/XXX
       const autoNoRek = `BSB05/RT${formNasabah.rt}/${urutanBaru}`;
 
-      const res = await tambahNasabah({ 
-        no_rekening: autoNoRek, 
-        nama: formNasabah.nama, 
-        rt: formNasabah.rt, 
-        no_hp: formNasabah.no_hp, 
-        saldo: 0 
-      });
-
-      if (res.success) {
-        tampilkanPesan('success', `Berhasil! No. Rek: ${autoNoRek}`);
-        setFormNasabah({ nama: '', rt: '01', no_hp: '' });
-        loadData();
-      }
+      const res = await tambahNasabah({ no_rekening: autoNoRek, nama: formNasabah.nama, rt: formNasabah.rt, no_hp: formNasabah.no_hp, saldo: 0 });
+      if (res.success) { tampilkanPesan('success', `Berhasil! No. Rek: ${autoNoRek}`); setFormNasabah({ nama: '', rt: '01', no_hp: '' }); loadData(); }
     } finally { setLoading(false); }
   };
 
@@ -470,7 +372,6 @@ export default function App() {
     }
   };
   
-  // --- KELOLA TRANSAKSI + NOTIFIKASI WHATSAPP ---
   const handlePilihKategori = (e) => {
     const namaSelected = e.target.value;
     const item = kategoriList.find(k => k.nama === namaSelected);
@@ -481,47 +382,21 @@ export default function App() {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      
       reader.onloadend = (event) => {
-        const img = new Image();
-        img.src = event.target.result;
-        
+        const img = new Image(); img.src = event.target.result;
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 800;
-          const MAX_HEIGHT = 800;
-          let width = img.width;
-          let height = img.height;
-
-          if (width > height) {
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width;
-              width = MAX_WIDTH;
-            }
-          } else {
-            if (height > MAX_HEIGHT) {
-              width *= MAX_HEIGHT / height;
-              height = MAX_HEIGHT;
-            }
-          }
-          
-          canvas.width = width;
-          canvas.height = height;
-          
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, width, height);
-          
+          const MAX_WIDTH = 800; const MAX_HEIGHT = 800;
+          let width = img.width; let height = img.height;
+          if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } } 
+          else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, width, height);
           const compressedBase64 = canvas.toDataURL('image/jpeg', 0.6);
-          
-          setFormSetor(prev => ({ ...prev, fotoBase64: compressedBase64 }));
-          setPreviewFoto(compressedBase64);
+          setFormSetor(prev => ({ ...prev, fotoBase64: compressedBase64 })); setPreviewFoto(compressedBase64);
         };
       };
-      
-      reader.onerror = () => {
-        tampilkanPesan('error', 'Gagal memproses atau membaca foto.');
-      };
-      
+      reader.onerror = () => tampilkanPesan('error', 'Gagal memproses atau membaca foto.');
       reader.readAsDataURL(file);
     }
   };
@@ -538,35 +413,22 @@ export default function App() {
       const hargaPerKg = parseFloat(formSetor.hargaCustom);
       const totalHarga = berat * hargaPerKg;
       
-      // Ambil riwayat real dan kalkulasi total balance baru secara presisi
       const saldoAktifReal = hitungSaldoReal(nasabahSelected, semuaTransaksi);
       const saldoTerbaru = saldoAktifReal + totalHarga;
 
       const res = await inputSetorSampah({
-        nasabah_doc_id: nasabahSelected.id,
-        no_rekening: nasabahSelected.no_rekening,
-        nama_nasabah: nasabahSelected.nama,
-        kategori_sampah: formSetor.kategoriNama || 'Umum',
-        berat_kg: berat,
-        harga_per_kg: hargaPerKg,
-        total_harga: totalHarga,
-        foto_bukti: formSetor.fotoBase64
+        nasabah_doc_id: nasabahSelected.id, no_rekening: nasabahSelected.no_rekening, nama_nasabah: nasabahSelected.nama,
+        kategori_sampah: formSetor.kategoriNama || 'Umum', berat_kg: berat, harga_per_kg: hargaPerKg, total_harga: totalHarga, foto_bukti: formSetor.fotoBase64
       });
 
       if (res.success) {
         tampilkanPesan('success', `Setor Rp ${totalHarga.toLocaleString('id-ID')} berhasil!`);
-        
         setWhatsappModal({
-          no_hp: nasabahSelected.no_hp || '',
-          nama: nasabahSelected.nama,
-          no_rekening: nasabahSelected.no_rekening,
+          no_hp: nasabahSelected.no_hp || '', nama: nasabahSelected.nama, no_rekening: nasabahSelected.no_rekening,
           pesan: `Halo *${nasabahSelected.nama}* (Rek: *${nasabahSelected.no_rekening}*),\n\nSetoran sampah berhasil dicatat di Bank Sampah BERSERI RW.05:\n- Jenis: ${formSetor.kategoriNama}\n- Berat: ${berat} kg\n- Penambahan Saldo: *+Rp ${totalHarga.toLocaleString('id-ID')}*\n- Total Saldo Anda Sekarang: *Rp ${saldoTerbaru.toLocaleString('id-ID')}*\n\ninformasi lebih lanjut kunjungi website banksampahberseri05.vercel.app\n\nTerima kasih telah berpartisipasi menjaga lingkungan bersama kami! ♻️`
         });
-
         setFormSetor({ nasabahId: '', kategoriNama: '', hargaCustom: '', berat_kg: '', fotoBase64: '' });
-        setSearchSetor('');
-        setPreviewFoto('');
-        loadData();
+        setSearchSetor(''); setPreviewFoto(''); loadData();
       }
     } finally { setLoading(false); }
   };
@@ -574,67 +436,40 @@ export default function App() {
   const handlePenarikanSaldo = async (e) => {
     e.preventDefault();
     const nasabahSelected = daftarNasabah.find(n => n.id === formTarik.nasabahId);
-    
-    if (!nasabahSelected) {
-      return tampilkanPesan('error', 'Pilih nasabah yang valid dari daftar auto-suggest!');
-    }
+    if (!nasabahSelected) return tampilkanPesan('error', 'Pilih nasabah yang valid dari daftar auto-suggest!');
     
     const nominal = parseFloat(formTarik.jumlahPenarikan);
-    if (!nominal || nominal <= 0) {
-      return tampilkanPesan('error', 'Nominal penarikan tidak valid!');
-    }
+    if (!nominal || nominal <= 0) return tampilkanPesan('error', 'Nominal penarikan tidak valid!');
     
     setLoading(true);
     try {
-      // 1. Ambil riwayat dan pastikan saldo cukup
       const riwayatAktif = await getRiwayatTransaksi(nasabahSelected.no_rekening);
       const saldoAktifReal = hitungSaldoReal(nasabahSelected, riwayatAktif);
 
       if (nominal > saldoAktifReal) {
-        setLoading(false);
-        return tampilkanPesan('error', `Saldo tidak cukup! Sisa saldo aktif: Rp ${saldoAktifReal.toLocaleString('id-ID')}`);
+        setLoading(false); return tampilkanPesan('error', `Saldo tidak cukup! Sisa saldo aktif: Rp ${saldoAktifReal.toLocaleString('id-ID')}`);
       }
       
       const saldoTerbaru = saldoAktifReal - nominal;
-      
-      // 2. Kirim ke Firebase (Pastikan keterangan tidak undefined)
       const keteranganAman = formTarik.keterangan ? formTarik.keterangan.trim() : 'Pengambilan Tabungan';
 
       const res = await inputPenarikanSaldo({
-        nasabah_doc_id: nasabahSelected.id,
-        no_rekening: nasabahSelected.no_rekening,
-        nama_nasabah: nasabahSelected.nama,
-        jumlah_penarikan: nominal,
-        keterangan: keteranganAman
+        nasabah_doc_id: nasabahSelected.id, no_rekening: nasabahSelected.no_rekening, nama_nasabah: nasabahSelected.nama, jumlah_penarikan: nominal, keterangan: keteranganAman
       });
 
-      // 3. Tangani hasil respon
       if (res && res.success) {
         tampilkanPesan('success', `Tarik Rp ${nominal.toLocaleString('id-ID')} berhasil!`);
-
         setWhatsappModal({
-          no_hp: nasabahSelected.no_hp || '',
-          nama: nasabahSelected.nama,
-          no_rekening: nasabahSelected.no_rekening,
+          no_hp: nasabahSelected.no_hp || '', nama: nasabahSelected.nama, no_rekening: nasabahSelected.no_rekening,
           pesan: `Halo *${nasabahSelected.nama}* (Rek: *${nasabahSelected.no_rekening}*),\n\nTelah dilakukan penarikan tabungan di Bank Sampah BERSERI RW.05:\n- Nominal Penarikan: *-Rp ${nominal.toLocaleString('id-ID')}*\n- Keterangan: ${keteranganAman}\n- Sisa Saldo Anda Sekarang: *Rp ${saldoTerbaru.toLocaleString('id-ID')}*\n\nTerima kasih.`
         });
-
-        setFormTarik({ nasabahId: '', jumlahPenarikan: '', keterangan: '' });
-        setSearchTarik('');
-        loadData();
+        setFormTarik({ nasabahId: '', jumlahPenarikan: '', keterangan: '' }); setSearchTarik(''); loadData();
       } else {
-        // Jika backend merespon gagal
-        console.error("Gagal dari backend:", res);
-        tampilkanPesan('error', 'Gagal! Pastikan koneksi internet stabil atau cek console.');
+        console.error("Gagal dari backend:", res); tampilkanPesan('error', 'Gagal! Pastikan koneksi internet stabil atau cek console.');
       }
-
     } catch (error) {
-      // Tangkap jika terjadi error/crash pada sistem
-      console.error("Error Penarikan:", error);
-      tampilkanPesan('error', `Sistem Error: ${error.message || 'Gagal menyimpan transaksi.'}`);
-    } finally { 
-      setLoading(false); 
-    }
+      console.error("Error Penarikan:", error); tampilkanPesan('error', `Sistem Error: ${error.message || 'Gagal menyimpan transaksi.'}`);
+    } finally { setLoading(false); }
   };
 
   const handleSaveEditTransaksi = async (e) => {
@@ -643,17 +478,10 @@ export default function App() {
     setLoading(true);
     try {
       const res = await updateTransaksi(editTransaksiModal.id, {
-        berat_kg: Number(editTransaksiModal.berat_kg || 0),
-        harga_per_kg: Number(editTransaksiModal.harga_per_kg || 0),
-        total_harga: Number(editTransaksiModal.total_harga || 0),
-        kategori_sampah: editTransaksiModal.kategori_sampah,
-        keterangan: editTransaksiModal.keterangan || ''
+        berat_kg: Number(editTransaksiModal.berat_kg || 0), harga_per_kg: Number(editTransaksiModal.harga_per_kg || 0),
+        total_harga: Number(editTransaksiModal.total_harga || 0), kategori_sampah: editTransaksiModal.kategori_sampah, keterangan: editTransaksiModal.keterangan || ''
       });
-      if (res.success) {
-        tampilkanPesan('success', 'Transaksi berhasil diubah!');
-        setEditTransaksiModal(null);
-        loadData();
-      }
+      if (res.success) { tampilkanPesan('success', 'Transaksi berhasil diubah!'); setEditTransaksiModal(null); loadData(); }
     } finally { setLoading(false); }
   };
 
@@ -681,25 +509,21 @@ export default function App() {
   const totalSetorFilter = transaksiTerdfilter.filter(t => t.total_harga > 0).reduce((acc, t) => acc + t.total_harga, 0);
   const totalTarikFilter = transaksiTerdfilter.filter(t => t.total_harga < 0).reduce((acc, t) => acc + Math.abs(t.total_harga), 0);
 
-  // Kalkulasi Laba Rugi
   const totalOmsetPenjualan = daftarPenjualan.reduce((acc, p) => acc + p.totalUangMasuk, 0);
   const totalModalPembelianWarga = semuaTransaksi
     .filter(t => t.total_harga > 0 && t.jenis_transaksi !== 'penarikan')
     .reduce((acc, t) => acc + t.total_harga, 0);
   const labaBersih = totalOmsetPenjualan - totalModalPembelianWarga;
 
-  // Filter Daftar Nasabah Berdasarkan RT yang dipilih
   const daftarNasabahTerdfilter = daftarNasabah.filter(n => {
     if (filterRtNasabah === 'semua') return true;
     return String(n.rt) === String(filterRtNasabah);
   });
 
-  // Akumulasi Total Saldo Semua Nasabah (Akurat 100%)
   const totalSaldoSemuaNasabah = daftarNasabahTerdfilter.reduce((acc, n) => {
     return acc + hitungSaldoReal(n, semuaTransaksi);
   }, 0);
 
-  // Auto-Suggest List Filtering
   const filteredNasabahSetor = searchSetor.trim() === '' ? [] : daftarNasabah.filter(n => 
     n.nama.toLowerCase().includes(searchSetor.toLowerCase()) || 
     n.no_rekening.toLowerCase().includes(searchSetor.toLowerCase())
@@ -715,18 +539,13 @@ export default function App() {
     if (!keywordCari.trim()) return;
     setLoading(true);
     try {
-      setNasabahAktif(null);
-      setRiwayatUser([]);
+      setNasabahAktif(null); setRiwayatUser([]);
       const results = await cariNasabahMulti(keywordCari.trim());
       if (results.length === 0) {
-        setHasilCariList([]);
-        tampilkanPesan('error', 'Data tidak ditemukan.');
+        setHasilCariList([]); tampilkanPesan('error', 'Data tidak ditemukan.');
       } else if (results.length === 1) {
-        setHasilCariList([]);
-        pilihNasabahSpesifik(results[0]);
-      } else {
-        setHasilCariList(results);
-      }
+        setHasilCariList([]); pilihNasabahSpesifik(results[0]);
+      } else { setHasilCariList(results); }
     } finally { setLoading(false); }
   };
 
@@ -739,11 +558,8 @@ export default function App() {
     } finally { setLoading(false); }
   };
 
-  // Saldo total untuk nasabah yang sedang aktif dilihat (User Dashboard)
   const finalSaldoNasabahAktif = hitungSaldoReal(nasabahAktif, riwayatUser);
-  // Riwayat lengkap (tambah row saldo awal otomatis) untuk dashboard nasabah (Descending)
   const riwayatTampil = getRiwayatLengkap(nasabahAktif, riwayatUser, false);
-
   const nasabahTarikSelected = daftarNasabah.find(n => n.id === formTarik.nasabahId);
   const totalEstimasi = (formSetor.berat_kg && formSetor.hargaCustom) ? parseFloat(formSetor.berat_kg) * parseFloat(formSetor.hargaCustom) : 0;
 
@@ -756,12 +572,7 @@ export default function App() {
           <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center space-x-3">
               <div className="w-12 h-12 rounded-full overflow-hidden shadow-md border-2 border-emerald-500/50 flex items-center justify-center bg-emerald-800">
-                <img 
-                  src="/logo.jpg" 
-                  alt="Logo BERSERI" 
-                  className="w-full h-full object-cover scale-110" 
-                  onError={(e) => { e.target.style.display = 'none'; }} 
-                />
+                <img src="/logo.jpg" alt="Logo BERSERI" className="w-full h-full object-cover scale-110" onError={(e) => { e.target.style.display = 'none'; }} />
               </div>
               <div>
                 <h1 className="text-xl font-bold tracking-wide">BANK SAMPAH "BERSERI"</h1>
@@ -782,7 +593,7 @@ export default function App() {
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${activeRole === 'admin' ? 'bg-white text-emerald-800 shadow-md' : 'text-emerald-100 hover:text-white'}`}
               >
                 {currentRoleLoggedIn === 'superadmin' ? <Crown className="w-3.5 h-3.5 text-amber-500" /> : <ShieldCheck className="w-3.5 h-3.5" />}
-                {currentRoleLoggedIn === 'superadmin' ? 'Super Admin' : 'Admin'}
+                {currentRoleLoggedIn ? (currentRoleLoggedIn === 'superadmin' ? 'Super Admin' : 'Petugas') : 'Login Pengurus'}
               </button>
 
               {currentRoleLoggedIn && (
@@ -808,7 +619,7 @@ export default function App() {
 
         <main className="max-w-6xl mx-auto px-4 mt-6">
           
-          {/* LOGIN FORM */}
+          {/* LOGIN FORM (MENGGUNAKAN EMAIL & PASSWORD FIREBASE) */}
           {activeRole === 'admin' && !currentRoleLoggedIn && (
             <div className="max-w-md mx-auto mt-8 print:hidden">
               <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-8 text-center relative">
@@ -816,12 +627,20 @@ export default function App() {
                   <Lock className="w-8 h-8" />
                 </div>
                 <h2 className="text-2xl font-bold text-slate-800 mb-1">Akses Pengurus</h2>
-                <p className="text-xs text-slate-500 mb-6">Masukkan password pengurus untuk mengakses dashboard data tabungan.</p>
+                <p className="text-xs text-slate-500 mb-6">Masuk menggunakan Email dan Password yang terdaftar untuk mengakses dashboard.</p>
                 
                 <form onSubmit={handleLogin} className="space-y-4">
                   <input
+                    type="email"
+                    placeholder="Alamat Email..."
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    className="w-full p-3 border rounded-xl text-center font-medium focus:ring-2 focus:ring-emerald-500 bg-slate-50"
+                    required
+                  />
+                  <input
                     type="password"
-                    placeholder="Masukkan Password..."
+                    placeholder="Password..."
                     value={passwordInput}
                     onChange={(e) => setPasswordInput(e.target.value)}
                     className="w-full p-3 border rounded-xl text-center font-bold tracking-widest focus:ring-2 focus:ring-emerald-500 bg-slate-50"
@@ -855,15 +674,15 @@ export default function App() {
                 <div className="flex items-center gap-2">
                   {currentRoleLoggedIn === 'superadmin' ? (
                     <span className="bg-amber-100 text-amber-900 border border-amber-300 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1">
-                      <Crown className="w-4 h-4 text-amber-600" /> Mode Super Admin Active
+                      <Crown className="w-4 h-4 text-amber-600" /> Super Admin (aris.triono.2024)
                     </span>
                   ) : (
                     <span className="bg-blue-100 text-blue-900 border border-blue-300 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1">
-                      <ShieldCheck className="w-4 h-4 text-blue-600" /> Mode Admin Active
+                      <ShieldCheck className="w-4 h-4 text-blue-600" /> Petugas Bank Sampah
                     </span>
                   )}
                   <span className="text-xs text-slate-500">
-                    {currentRoleLoggedIn === 'superadmin' ? 'Akses Penuh (Edit & Hapus)' : 'Hanya Input Baru'}
+                    {currentRoleLoggedIn === 'superadmin' ? 'Akses Penuh (Edit, Hapus, Kelola Petugas)' : 'Hanya Akses Input (Setor & Tarik)'}
                   </span>
                 </div>
                 
@@ -877,42 +696,50 @@ export default function App() {
 
               {/* TOMBOL NAVIGASI / TAB HALAMAN ADMIN */}
               <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap gap-2 print:hidden">
-                <button
-                  onClick={() => setAdminTab('nasabah')}
-                  className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${adminTab === 'nasabah' ? 'bg-emerald-700 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
-                >
-                  <ListOrdered className="w-4 h-4" /> 1. Daftar Nasabah
-                </button>
-                <button
-                  onClick={() => setAdminTab('penjualan')}
-                  className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${adminTab === 'penjualan' ? 'bg-emerald-700 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
-                >
-                  <Wallet className="w-4 h-4" /> 2. Penjualan & Laba Rugi
-                </button>
-                <button
-                  onClick={() => setAdminTab('transaksi')}
-                  className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${adminTab === 'transaksi' ? 'bg-emerald-700 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
-                >
-                  <UserPlus className="w-4 h-4" /> 3. Transaksi Warga
-                </button>
-                <button
-                  onClick={() => setAdminTab('kategori')}
-                  className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${adminTab === 'kategori' ? 'bg-emerald-700 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
-                >
-                  <Tag className="w-4 h-4" /> 4. Jenis Sampah & Harga
-                </button>
-                <button
-                  onClick={() => setAdminTab('laporan')}
-                  className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${adminTab === 'laporan' ? 'bg-emerald-700 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
-                >
-                  <FileText className="w-4 h-4" /> 5. Laporan Periodik
-                </button>
+                <button onClick={() => setAdminTab('nasabah')} className={`flex-1 min-w-[120px] py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${adminTab === 'nasabah' ? 'bg-emerald-700 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}><ListOrdered className="w-4 h-4" /> 1. Nasabah</button>
+                <button onClick={() => setAdminTab('penjualan')} className={`flex-1 min-w-[120px] py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${adminTab === 'penjualan' ? 'bg-emerald-700 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}><Wallet className="w-4 h-4" /> 2. Laba/Rugi</button>
+                <button onClick={() => setAdminTab('transaksi')} className={`flex-1 min-w-[120px] py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${adminTab === 'transaksi' ? 'bg-emerald-700 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}><UserPlus className="w-4 h-4" /> 3. Transaksi</button>
+                <button onClick={() => setAdminTab('kategori')} className={`flex-1 min-w-[120px] py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${adminTab === 'kategori' ? 'bg-emerald-700 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}><Tag className="w-4 h-4" /> 4. Harga</button>
+                <button onClick={() => setAdminTab('laporan')} className={`flex-1 min-w-[120px] py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${adminTab === 'laporan' ? 'bg-emerald-700 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}><FileText className="w-4 h-4" /> 5. Laporan</button>
+                
+                {/* TAB KHUSUS SUPER ADMIN UNTUK MEMBUAT AKUN PETUGAS */}
+                {currentRoleLoggedIn === 'superadmin' && (
+                  <button onClick={() => setAdminTab('petugas')} className={`flex-1 min-w-[120px] py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${adminTab === 'petugas' ? 'bg-amber-600 text-white shadow-md' : 'bg-amber-100 text-amber-800 hover:bg-amber-200'}`}><UserCog className="w-4 h-4" /> 6. Kelola Petugas</button>
+                )}
               </div>
 
               <div className="hidden print:block text-center mb-6 pb-4 border-b-2 border-slate-800">
                 <h2 className="text-xl font-extrabold uppercase">LAPORAN BANK SAMPAH "BERSERI" RW.05</h2>
                 <p className="text-sm font-semibold">KELURAHAN TAMBAKREJA, KECAMATAN CILACAP SELATAN</p>
               </div>
+
+              {/* HALAMAN 6: KELOLA PETUGAS (HANYA SUPER ADMIN) */}
+              {adminTab === 'petugas' && currentRoleLoggedIn === 'superadmin' && (
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 print:hidden max-w-2xl mx-auto">
+                  <div className="flex items-center gap-2 text-amber-700 font-bold text-lg mb-4 pb-2 border-b">
+                    <UserCog className="w-5 h-5" /><h2>Buat Akun Petugas Baru (Input Only)</h2>
+                  </div>
+                  <div className="bg-amber-50 p-4 border border-amber-200 rounded-xl mb-6">
+                    <p className="text-xs text-amber-800 font-medium leading-relaxed">
+                      Akun yang didaftarkan di sini secara otomatis akan bertindak sebagai <strong>Petugas Biasa</strong>. Mereka hanya dapat melakukan <strong>Pendaftaran Warga, Setoran, dan Penarikan</strong>. Tombol Hapus (Delete), Edit, dan menu ini tidak akan muncul pada akun mereka.
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleTambahPetugas} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">ALAMAT EMAIL PETUGAS</label>
+                      <input type="email" value={formPetugas.email} onChange={(e) => setFormPetugas({ ...formPetugas, email: e.target.value })} className="w-full p-3 border rounded-xl text-sm bg-slate-50" placeholder="contoh: petugas01@gmail.com" required />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">PASSWORD (MINIMAL 6 KARAKTER)</label>
+                      <input type="password" value={formPetugas.password} onChange={(e) => setFormPetugas({ ...formPetugas, password: e.target.value })} className="w-full p-3 border rounded-xl text-sm bg-slate-50" placeholder="••••••••" minLength="6" required />
+                    </div>
+                    <button type="submit" disabled={loading} className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow transition text-sm">
+                      {loading ? 'Memproses...' : 'Daftarkan Akun Petugas'}
+                    </button>
+                  </form>
+                </div>
+              )}
 
               {/* HALAMAN 1: DAFTAR NASABAH & SALDO */}
               {adminTab === 'nasabah' && (
@@ -1124,7 +951,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* HAL কতটা AMAN 3: TRANSAKSI (SETOR, TARIK, PENDAFTARAN) */}
+              {/* HALAMAN 3: TRANSAKSI (SETOR, TARIK, PENDAFTARAN) */}
               {adminTab === 'transaksi' && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   
@@ -1132,12 +959,7 @@ export default function App() {
                   <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between relative">
                     <div>
                       <div className="flex items-center gap-2 text-emerald-700 font-bold text-base mb-4 pb-2 border-b">
-                        <img 
-                          src="/logo.jpg" 
-                          alt="Logo" 
-                          className="w-6 h-6 rounded-full object-cover border border-emerald-300 shadow-sm" 
-                          onError={(e) => { e.target.style.display = 'none'; }} 
-                        />
+                        <img src="/logo.jpg" alt="Logo" className="w-6 h-6 rounded-full object-cover border border-emerald-300 shadow-sm" onError={(e) => { e.target.style.display = 'none'; }} />
                         <h2>Setor Sampah</h2>
                       </div>
                       <form onSubmit={handleSetorSampah} className="space-y-3">
@@ -1148,14 +970,9 @@ export default function App() {
                               type="text"
                               placeholder="Ketik Nama / No Rekening..."
                               value={searchSetor}
-                              onChange={(e) => {
-                                setSearchSetor(e.target.value);
-                                setShowSuggestionsSetor(true);
-                                if (!e.target.value) setFormSetor(prev => ({ ...prev, nasabahId: '' }));
-                              }}
+                              onChange={(e) => { setSearchSetor(e.target.value); setShowSuggestionsSetor(true); if (!e.target.value) setFormSetor(prev => ({ ...prev, nasabahId: '' })); }}
                               onFocus={() => setShowSuggestionsSetor(true)}
-                              className="w-full p-2.5 pl-8 border rounded-xl text-xs bg-slate-50 font-medium"
-                              required
+                              className="w-full p-2.5 pl-8 border rounded-xl text-xs bg-slate-50 font-medium" required
                             />
                             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-3" />
                           </div>
@@ -1163,19 +980,8 @@ export default function App() {
                           {showSuggestionsSetor && filteredNasabahSetor.length > 0 && (
                             <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
                               {filteredNasabahSetor.map((n) => (
-                                <div
-                                  key={n.id}
-                                  onClick={() => {
-                                    setFormSetor(prev => ({ ...prev, nasabahId: n.id }));
-                                    setSearchSetor(`${n.no_rekening} - ${n.nama} (RT ${n.rt})`);
-                                    setShowSuggestionsSetor(false);
-                                  }}
-                                  className="p-2.5 hover:bg-emerald-50 cursor-pointer text-xs border-b last:border-none flex justify-between items-center"
-                                >
-                                  <div>
-                                    <span className="font-bold text-emerald-700">{n.no_rekening}</span> - <span className="font-semibold text-slate-800">{n.nama}</span>
-                                    <p className="text-[10px] text-slate-500">RT {n.rt} | Saldo: Rp {hitungSaldoReal(n, semuaTransaksi).toLocaleString('id-ID')}</p>
-                                  </div>
+                                <div key={n.id} onClick={() => { setFormSetor(prev => ({ ...prev, nasabahId: n.id })); setSearchSetor(`${n.no_rekening} - ${n.nama} (RT ${n.rt})`); setShowSuggestionsSetor(false); }} className="p-2.5 hover:bg-emerald-50 cursor-pointer text-xs border-b last:border-none flex justify-between items-center">
+                                  <div><span className="font-bold text-emerald-700">{n.no_rekening}</span> - <span className="font-semibold text-slate-800">{n.nama}</span><p className="text-[10px] text-slate-500">RT {n.rt} | Saldo: Rp {hitungSaldoReal(n, semuaTransaksi).toLocaleString('id-ID')}</p></div>
                                 </div>
                               ))}
                             </div>
@@ -1184,59 +990,30 @@ export default function App() {
 
                         <div>
                           <label className="block text-xs font-semibold text-slate-600 mb-1">JENIS SAMPAH</label>
-                          <select
-                            value={formSetor.kategoriNama}
-                            onChange={handlePilihKategori}
-                            className="w-full p-2.5 border rounded-xl text-xs bg-slate-50"
-                            required
-                          >
+                          <select value={formSetor.kategoriNama} onChange={handlePilihKategori} className="w-full p-2.5 border rounded-xl text-xs bg-slate-50" required>
                             <option value="">-- Pilih Jenis Sampah --</option>
                             {kategoriList.map((k) => <option key={k.id || k.nama} value={k.nama}>{k.nama} (Rp {k.harga.toLocaleString('id-ID')}/kg)</option>)}
                           </select>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1">BERAT (KG)</label>
-                            <input type="number" step="0.1" value={formSetor.berat_kg} onChange={(e) => setFormSetor({ ...formSetor, berat_kg: e.target.value })} className="w-full p-2.5 border rounded-xl text-xs bg-slate-50" required />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1">HARGA/KG (RP)</label>
-                            <input type="number" value={formSetor.hargaCustom} onChange={(e) => setFormSetor({ ...formSetor, hargaCustom: e.target.value })} className="w-full p-2.5 border rounded-xl text-xs font-bold text-emerald-800 bg-emerald-50/50" required />
-                          </div>
+                          <div><label className="block text-xs font-semibold text-slate-600 mb-1">BERAT (KG)</label><input type="number" step="0.1" value={formSetor.berat_kg} onChange={(e) => setFormSetor({ ...formSetor, berat_kg: e.target.value })} className="w-full p-2.5 border rounded-xl text-xs bg-slate-50" required /></div>
+                          <div><label className="block text-xs font-semibold text-slate-600 mb-1">HARGA/KG (RP)</label><input type="number" value={formSetor.hargaCustom} onChange={(e) => setFormSetor({ ...formSetor, hargaCustom: e.target.value })} className="w-full p-2.5 border rounded-xl text-xs font-bold text-emerald-800 bg-emerald-50/50" required /></div>
                         </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-600 mb-1">TOTAL TAMBAHAN SALDO</label>
-                          <div className="p-2.5 bg-emerald-100 border border-emerald-300 rounded-xl text-emerald-900 font-extrabold text-sm">+ Rp {totalEstimasi.toLocaleString('id-ID')}</div>
-                        </div>
+                        <div><label className="block text-xs font-semibold text-slate-600 mb-1">TOTAL TAMBAHAN SALDO</label><div className="p-2.5 bg-emerald-100 border border-emerald-300 rounded-xl text-emerald-900 font-extrabold text-sm">+ Rp {totalEstimasi.toLocaleString('id-ID')}</div></div>
                         <div>
                           <label className="block text-xs font-semibold text-slate-600 mb-1">FOTO BUKTI TIMBANGAN</label>
                           <div className="flex flex-wrap items-center gap-2">
-                            <label className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 border rounded-xl cursor-pointer text-xs font-medium">
-                              <ImageIcon className="w-3.5 h-3.5 text-blue-600" /><span>Galeri</span>
-                              <input type="file" accept="image/*" onChange={handleFotoChange} className="hidden" />
-                            </label>
-                            <label className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 border rounded-xl cursor-pointer text-xs font-medium">
-                              <Camera className="w-3.5 h-3.5 text-emerald-600" /><span>Kamera</span>
-                              <input type="file" accept="image/*" capture="environment" onChange={handleFotoChange} className="hidden" />
-                            </label>
+                            <label className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 border rounded-xl cursor-pointer text-xs font-medium"><ImageIcon className="w-3.5 h-3.5 text-blue-600" /><span>Galeri</span><input type="file" accept="image/*" onChange={handleFotoChange} className="hidden" /></label>
+                            <label className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 border rounded-xl cursor-pointer text-xs font-medium"><Camera className="w-3.5 h-3.5 text-emerald-600" /><span>Kamera</span><input type="file" accept="image/*" capture="environment" onChange={handleFotoChange} className="hidden" /></label>
                           </div>
-                          
                           {previewFoto && (
                             <div className="mt-3 relative w-32 h-32 rounded-xl overflow-hidden border-2 border-emerald-500 shadow-md">
                               <img src={previewFoto} alt="Preview Bukti" className="w-full h-full object-cover" />
-                              <button
-                                type="button"
-                                onClick={() => { setPreviewFoto(''); setFormSetor(prev => ({ ...prev, fotoBase64: '' })); }}
-                                className="absolute top-1 right-1 bg-rose-600 text-white p-1 rounded-md shadow-sm"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
+                              <button type="button" onClick={() => { setPreviewFoto(''); setFormSetor(prev => ({ ...prev, fotoBase64: '' })); }} className="absolute top-1 right-1 bg-rose-600 text-white p-1 rounded-md shadow-sm"><X className="w-3 h-3" /></button>
                             </div>
                           )}
                         </div>
-                        <button type="submit" disabled={loading} className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow transition text-xs mt-2">
-                          {loading ? 'Memproses...' : 'Simpan Transaksi Setoran'}
-                        </button>
+                        <button type="submit" disabled={loading} className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow transition text-xs mt-2">{loading ? 'Memproses...' : 'Simpan Transaksi Setoran'}</button>
                       </form>
                     </div>
                   </div>
@@ -1255,14 +1032,9 @@ export default function App() {
                               type="text"
                               placeholder="Ketik Nama / No Rekening..."
                               value={searchTarik}
-                              onChange={(e) => {
-                                setSearchTarik(e.target.value);
-                                setShowSuggestionsTarik(true);
-                                if (!e.target.value) setFormTarik(prev => ({ ...prev, nasabahId: '' }));
-                              }}
+                              onChange={(e) => { setSearchTarik(e.target.value); setShowSuggestionsTarik(true); if (!e.target.value) setFormTarik(prev => ({ ...prev, nasabahId: '' })); }}
                               onFocus={() => setShowSuggestionsTarik(true)}
-                              className="w-full p-2.5 pl-8 border rounded-xl text-xs bg-slate-50 font-medium"
-                              required
+                              className="w-full p-2.5 pl-8 border rounded-xl text-xs bg-slate-50 font-medium" required
                             />
                             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-3" />
                           </div>
@@ -1270,19 +1042,8 @@ export default function App() {
                           {showSuggestionsTarik && filteredNasabahTarik.length > 0 && (
                             <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
                               {filteredNasabahTarik.map((n) => (
-                                <div
-                                  key={n.id}
-                                  onClick={() => {
-                                    setFormTarik(prev => ({ ...prev, nasabahId: n.id }));
-                                    setSearchTarik(`${n.no_rekening} - ${n.nama} (RT ${n.rt})`);
-                                    setShowSuggestionsTarik(false);
-                                  }}
-                                  className="p-2.5 hover:bg-rose-50 cursor-pointer text-xs border-b last:border-none flex justify-between items-center"
-                                >
-                                  <div>
-                                    <span className="font-bold text-rose-700">{n.no_rekening}</span> - <span className="font-semibold text-slate-800">{n.nama}</span>
-                                    <p className="text-[10px] text-slate-500">RT {n.rt} | Saldo: Rp {hitungSaldoReal(n, semuaTransaksi).toLocaleString('id-ID')}</p>
-                                  </div>
+                                <div key={n.id} onClick={() => { setFormTarik(prev => ({ ...prev, nasabahId: n.id })); setSearchTarik(`${n.no_rekening} - ${n.nama} (RT ${n.rt})`); setShowSuggestionsTarik(false); }} className="p-2.5 hover:bg-rose-50 cursor-pointer text-xs border-b last:border-none flex justify-between items-center">
+                                  <div><span className="font-bold text-rose-700">{n.no_rekening}</span> - <span className="font-semibold text-slate-800">{n.nama}</span><p className="text-[10px] text-slate-500">RT {n.rt} | Saldo: Rp {hitungSaldoReal(n, semuaTransaksi).toLocaleString('id-ID')}</p></div>
                                 </div>
                               ))}
                             </div>
@@ -1295,17 +1056,9 @@ export default function App() {
                             <span className="text-lg font-black text-amber-900">Rp {hitungSaldoReal(nasabahTarikSelected, semuaTransaksi).toLocaleString('id-ID')}</span>
                           </div>
                         )}
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-600 mb-1">NOMINAL PENARIKAN (RP)</label>
-                          <input type="number" value={formTarik.jumlahPenarikan} onChange={(e) => setFormTarik({ ...formTarik, jumlahPenarikan: e.target.value })} className="w-full p-2.5 border rounded-xl text-xs font-bold text-rose-800 bg-rose-50/50" required />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-600 mb-1">KETERANGAN / CATATAN</label>
-                          <input type="text" value={formTarik.keterangan} onChange={(e) => setFormTarik({ ...formTarik, keterangan: e.target.value })} className="w-full p-2.5 border rounded-xl text-xs bg-slate-50" />
-                        </div>
-                        <button type="submit" disabled={loading} className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow transition text-xs mt-2">
-                          {loading ? 'Memproses...' : 'Proses Penarikan Saldo'}
-                        </button>
+                        <div><label className="block text-xs font-semibold text-slate-600 mb-1">NOMINAL PENARIKAN (RP)</label><input type="number" value={formTarik.jumlahPenarikan} onChange={(e) => setFormTarik({ ...formTarik, jumlahPenarikan: e.target.value })} className="w-full p-2.5 border rounded-xl text-xs font-bold text-rose-800 bg-rose-50/50" required /></div>
+                        <div><label className="block text-xs font-semibold text-slate-600 mb-1">KETERANGAN / CATATAN</label><input type="text" value={formTarik.keterangan} onChange={(e) => setFormTarik({ ...formTarik, keterangan: e.target.value })} className="w-full p-2.5 border rounded-xl text-xs bg-slate-50" /></div>
+                        <button type="submit" disabled={loading} className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow transition text-xs mt-2">{loading ? 'Memproses...' : 'Proses Penarikan Saldo'}</button>
                       </form>
                     </div>
                   </div>
@@ -1317,25 +1070,15 @@ export default function App() {
                         <UserPlus className="w-5 h-5 text-emerald-600" /><h2>Pendaftaran Nasabah Baru</h2>
                       </div>
                       <form onSubmit={handleTambahNasabah} className="space-y-3">
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-600 mb-1">NAMA LENGKAP WARGA</label>
-                          <input type="text" value={formNasabah.nama} onChange={(e) => setFormNasabah({ ...formNasabah, nama: e.target.value })} className="w-full p-2.5 border rounded-xl text-xs bg-slate-50" required />
-                        </div>
+                        <div><label className="block text-xs font-semibold text-slate-600 mb-1">NAMA LENGKAP WARGA</label><input type="text" value={formNasabah.nama} onChange={(e) => setFormNasabah({ ...formNasabah, nama: e.target.value })} className="w-full p-2.5 border rounded-xl text-xs bg-slate-50" required /></div>
                         <div className="grid grid-cols-2 gap-2">
                           <div>
                             <label className="block text-xs font-semibold text-slate-600 mb-1">RT (RW.05)</label>
-                            <select value={formNasabah.rt} onChange={(e) => setFormNasabah({ ...formNasabah, rt: e.target.value })} className="w-full p-2.5 border rounded-xl text-xs bg-slate-50">
-                              {Array.from({ length: 13 }, (_, i) => <option key={i} value={String(i + 1).padStart(2, '0')}>RT {String(i + 1).padStart(2, '0')}</option>)}
-                            </select>
+                            <select value={formNasabah.rt} onChange={(e) => setFormNasabah({ ...formNasabah, rt: e.target.value })} className="w-full p-2.5 border rounded-xl text-xs bg-slate-50">{Array.from({ length: 13 }, (_, i) => <option key={i} value={String(i + 1).padStart(2, '0')}>RT {String(i + 1).padStart(2, '0')}</option>)}</select>
                           </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1">NO. WHATSAPP / HP</label>
-                            <input type="text" placeholder="0812xxxx" value={formNasabah.no_hp} onChange={(e) => setFormNasabah({ ...formNasabah, no_hp: e.target.value })} className="w-full p-2.5 border rounded-xl text-xs bg-slate-50" />
-                          </div>
+                          <div><label className="block text-xs font-semibold text-slate-600 mb-1">NO. WHATSAPP / HP</label><input type="text" placeholder="0812xxxx" value={formNasabah.no_hp} onChange={(e) => setFormNasabah({ ...formNasabah, no_hp: e.target.value })} className="w-full p-2.5 border rounded-xl text-xs bg-slate-50" /></div>
                         </div>
-                        <button type="submit" disabled={loading} className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl shadow transition text-xs mt-2">
-                          {loading ? 'Mendaftarkan...' : 'Daftarkan Nasabah'}
-                        </button>
+                        <button type="submit" disabled={loading} className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl shadow transition text-xs mt-2">{loading ? 'Mendaftarkan...' : 'Daftarkan Nasabah'}</button>
                       </form>
                     </div>
                   </div>
@@ -1352,14 +1095,8 @@ export default function App() {
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                       <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-1"><Plus className="w-4 h-4 text-emerald-600" />Tambah Barang Baru</h3>
                       <form onSubmit={handleTambahKategori} className="space-y-3">
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-500 mb-1">NAMA BARANG</label>
-                          <input type="text" value={formKategori.nama} onChange={(e) => setFormKategori({ ...formKategori, nama: e.target.value })} className="w-full p-2 border rounded-lg text-xs bg-white" required />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-500 mb-1">HARGA ACUAN (RP/KG)</label>
-                          <input type="number" value={formKategori.harga} onChange={(e) => setFormKategori({ ...formKategori, harga: e.target.value })} className="w-full p-2 border rounded-lg text-xs bg-white" required />
-                        </div>
+                        <div><label className="block text-xs font-semibold text-slate-500 mb-1">NAMA BARANG</label><input type="text" value={formKategori.nama} onChange={(e) => setFormKategori({ ...formKategori, nama: e.target.value })} className="w-full p-2 border rounded-lg text-xs bg-white" required /></div>
+                        <div><label className="block text-xs font-semibold text-slate-500 mb-1">HARGA ACUAN (RP/KG)</label><input type="number" value={formKategori.harga} onChange={(e) => setFormKategori({ ...formKategori, harga: e.target.value })} className="w-full p-2 border rounded-lg text-xs bg-white" required /></div>
                         <button type="submit" disabled={loading} className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow transition">+ Simpan Barang Baru</button>
                       </form>
                     </div>
@@ -1368,10 +1105,7 @@ export default function App() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-96 overflow-y-auto pr-1">
                         {kategoriList.map((k) => (
                           <div key={k.id || k.nama} className="p-3 bg-white border border-slate-200 rounded-xl flex justify-between items-center shadow-sm">
-                            <div>
-                              <p className="font-bold text-slate-800 text-sm">{k.nama}</p>
-                              <p className="text-xs font-semibold text-emerald-700">Rp {Number(k.harga).toLocaleString('id-ID')} / kg</p>
-                            </div>
+                            <div><p className="font-bold text-slate-800 text-sm">{k.nama}</p><p className="text-xs font-semibold text-emerald-700">Rp {Number(k.harga).toLocaleString('id-ID')} / kg</p></div>
                             {currentRoleLoggedIn === 'superadmin' && (
                               <div className="flex items-center gap-1">
                                 <button onClick={() => setEditKategoriModal(k)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>
@@ -1403,15 +1137,9 @@ export default function App() {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
-                      <span className="text-xs text-emerald-800 font-semibold block">TOTAL BERAT SAMPAH</span><span className="text-xl font-extrabold text-emerald-900">{totalBeratFilter.toFixed(1)} kg</span>
-                    </div>
-                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
-                      <span className="text-xs text-emerald-800 font-semibold block">TOTAL PEMASUKAN TABUNGAN</span><span className="text-xl font-extrabold text-emerald-900">Rp {totalSetorFilter.toLocaleString('id-ID')}</span>
-                    </div>
-                    <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl">
-                      <span className="text-xs text-rose-800 font-semibold block">TOTAL PENARIKAN SALDO</span><span className="text-xl font-extrabold text-rose-900">Rp {totalTarikFilter.toLocaleString('id-ID')}</span>
-                    </div>
+                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl"><span className="text-xs text-emerald-800 font-semibold block">TOTAL BERAT SAMPAH</span><span className="text-xl font-extrabold text-emerald-900">{totalBeratFilter.toFixed(1)} kg</span></div>
+                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl"><span className="text-xs text-emerald-800 font-semibold block">TOTAL PEMASUKAN TABUNGAN</span><span className="text-xl font-extrabold text-emerald-900">Rp {totalSetorFilter.toLocaleString('id-ID')}</span></div>
+                    <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl"><span className="text-xs text-rose-800 font-semibold block">TOTAL PENARIKAN SALDO</span><span className="text-xl font-extrabold text-rose-900">Rp {totalTarikFilter.toLocaleString('id-ID')}</span></div>
                   </div>
 
                   <div className="overflow-x-auto">
@@ -1433,9 +1161,7 @@ export default function App() {
                               <td className="p-2.5 font-medium text-slate-800">{t.nama_nasabah}</td>
                               <td className="p-2.5">{t.kategori_sampah}</td>
                               <td className="p-2.5 font-semibold text-slate-600">{isPenarikan ? '-' : `${t.berat_kg} kg`}</td>
-                              <td className={`p-2.5 text-right font-bold ${isPenarikan ? 'text-rose-600' : 'text-emerald-700'}`}>
-                                {isPenarikan ? '' : '+ '}Rp {(t.total_harga || 0).toLocaleString('id-ID')}
-                              </td>
+                              <td className={`p-2.5 text-right font-bold ${isPenarikan ? 'text-rose-600' : 'text-emerald-700'}`}>{isPenarikan ? '' : '+ '}Rp {(t.total_harga || 0).toLocaleString('id-ID')}</td>
                               {currentRoleLoggedIn === 'superadmin' && (
                                 <td className="p-2.5 text-center print:hidden">
                                   <div className="flex justify-center items-center gap-1">
@@ -1474,11 +1200,7 @@ export default function App() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
                     {hasilCariList.map((n) => (
                       <button key={n.id} onClick={() => pilihNasabahSpesifik(n)} className="p-4 bg-white border rounded-xl text-left transition flex justify-between items-center">
-                        <div>
-                          <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">{n.no_rekening}</span>
-                          <h4 className="font-bold text-slate-800 text-base mt-1">{n.nama}</h4>
-                          <p className="text-xs text-slate-500">RT {n.rt} / RW 05</p>
-                        </div>
+                        <div><span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">{n.no_rekening}</span><h4 className="font-bold text-slate-800 text-base mt-1">{n.nama}</h4><p className="text-xs text-slate-500">RT {n.rt} / RW 05</p></div>
                         <ChevronRight className="w-5 h-5 text-slate-400" />
                       </button>
                     ))}
@@ -1518,14 +1240,8 @@ export default function App() {
                                 <td className="p-3 text-xs text-slate-500">{t.tanggal?.seconds ? new Date(t.tanggal.seconds * 1000).toLocaleDateString('id-ID') : '-'}</td>
                                 <td className="p-3 font-medium text-slate-800">{t.kategori_sampah}</td>
                                 <td className="p-3">{isPenarikan ? '-' : `${t.berat_kg} kg`}</td>
-                                <td className={`p-3 font-bold ${isPenarikan ? 'text-rose-600' : 'text-emerald-600'}`}>
-                                  {isPenarikan ? '' : '+ '}Rp {(t.total_harga || 0).toLocaleString('id-ID')}
-                                </td>
-                                <td className="p-3 text-center">
-                                  {t.foto_bukti && (
-                                    <button onClick={() => setModalFoto(t.foto_bukti)} className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border rounded text-xs">Lihat Foto</button>
-                                  )}
-                                </td>
+                                <td className={`p-3 font-bold ${isPenarikan ? 'text-rose-600' : 'text-emerald-600'}`}>{isPenarikan ? '' : '+ '}Rp {(t.total_harga || 0).toLocaleString('id-ID')}</td>
+                                <td className="p-3 text-center">{t.foto_bukti && (<button onClick={() => setModalFoto(t.foto_bukti)} className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border rounded text-xs">Lihat Foto</button>)}</td>
                               </tr>
                             );
                           })}
@@ -1547,32 +1263,14 @@ export default function App() {
             <p className="font-bold text-slate-800 text-sm">BANK SAMPAH "BERSERI" RW.05</p>
             <p className="text-xs text-slate-500 mt-0.5">Kelurahan Tambakreja, Kecamatan Cilacap Selatan, Kabupaten Cilacap</p>
           </div>
-
           <div className="flex flex-wrap items-center gap-4 justify-center md:justify-end">
-            <a 
-              href="https://www.instagram.com/rw_05_tambakreja" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-tr from-amber-500 via-pink-600 to-purple-600 hover:opacity-90 text-white font-bold rounded-xl transition shadow-md group"
-            >
-              <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
-                <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
-              </svg>
+            <a href="https://www.instagram.com/rw_05_tambakreja" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 bg-gradient-to-tr from-amber-500 via-pink-600 to-purple-600 hover:opacity-90 text-white font-bold rounded-xl transition shadow-md group">
+              <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
               <span className="text-xs font-semibold">@rw_05_tambakreja</span>
               <ExternalLink className="w-3 h-3 text-white/70 group-hover:text-white" />
             </a>
-
-            <a 
-              href="https://www.tiktok.com/@rw_05_tambakreja" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2 bg-black hover:bg-gray-900 border border-gray-800 text-white font-bold rounded-xl transition shadow-md group"
-            >
-              <img 
-                src="https://upload.wikimedia.org/wikipedia/commons/3/34/Ionicons_logo-tiktok.svg" 
-                alt="TikTok Logo" 
-                className="w-5 h-5 shrink-0 brightness-0 invert" 
-              />
+            <a href="https://www.tiktok.com/@rw_05_tambakreja" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 bg-black hover:bg-gray-900 border border-gray-800 text-white font-bold rounded-xl transition shadow-md group">
+              <img src="https://upload.wikimedia.org/wikipedia/commons/3/34/Ionicons_logo-tiktok.svg" alt="TikTok Logo" className="w-5 h-5 shrink-0 brightness-0 invert" />
               <span className="text-xs font-semibold">@rw_05_tambakreja</span>
               <ExternalLink className="w-3 h-3 text-white/70 group-hover:text-white" />
             </a>
@@ -1584,26 +1282,11 @@ export default function App() {
       {importModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 print:hidden">
           <div className="bg-white rounded-2xl w-full max-w-lg p-6 relative shadow-2xl">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                <FileSpreadsheet className="w-5 h-5 text-blue-600" /> Import Data Warga
-              </h3>
-              <button onClick={() => setImportModal(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
-            </div>
-            <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl mb-4 text-xs text-blue-800 text-left">
-              <strong>Cara Import (Copy-Paste):</strong> Buka Microsoft Excel Anda, blok dan <i>copy</i> (Ctrl+C) data Anda dengan urutan 4 kolom: <b>No. Rekening, RT, Nama, Saldo Awal</b>. Lalu tempel (Ctrl+V) ke dalam kotak teks di bawah ini.
-            </div>
+            <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-800 flex items-center gap-2"><FileSpreadsheet className="w-5 h-5 text-blue-600" /> Import Data Warga</h3><button onClick={() => setImportModal(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button></div>
+            <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl mb-4 text-xs text-blue-800 text-left"><strong>Cara Import (Copy-Paste):</strong> Buka Microsoft Excel Anda, blok dan <i>copy</i> (Ctrl+C) data Anda dengan urutan 4 kolom: <b>No. Rekening, RT, Nama, Saldo Awal</b>. Lalu tempel (Ctrl+V) ke dalam kotak teks di bawah ini.</div>
             <form onSubmit={handleImportExcel}>
-              <textarea
-                value={importText}
-                onChange={(e) => setImportText(e.target.value)}
-                placeholder={`BSB05/RT01/001\t01\tBudi Santoso\t50000\nBSB05/RT02/001\t02\tSiti Aminah\t25000`}
-                className="w-full h-48 p-3 border rounded-xl text-xs font-mono whitespace-pre overflow-x-auto bg-slate-50 focus:ring-2 focus:ring-blue-500 text-left"
-                required
-              ></textarea>
-              <button type="submit" disabled={loading} className="w-full mt-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-md transition">
-                {loading ? 'Memproses Data...' : 'Mulai Import Data'}
-              </button>
+              <textarea value={importText} onChange={(e) => setImportText(e.target.value)} placeholder={`BSB05/RT01/001\t01\tBudi Santoso\t50000\nBSB05/RT02/001\t02\tSiti Aminah\t25000`} className="w-full h-48 p-3 border rounded-xl text-xs font-mono whitespace-pre overflow-x-auto bg-slate-50 focus:ring-2 focus:ring-blue-500 text-left" required></textarea>
+              <button type="submit" disabled={loading} className="w-full mt-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-md transition">{loading ? 'Memproses Data...' : 'Mulai Import Data'}</button>
             </form>
           </div>
         </div>
@@ -1613,34 +1296,13 @@ export default function App() {
       {whatsappModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 relative shadow-2xl text-center">
-            <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3">
-              <MessageSquare className="w-7 h-7" />
-            </div>
+            <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3"><MessageSquare className="w-7 h-7" /></div>
             <h3 className="font-extrabold text-slate-800 text-lg mb-1">Transaksi Berhasil Disimpan!</h3>
-            <p className="text-xs text-slate-500 mb-4">
-              Kirimkan struk rincian transaksi & saldo terbaru ke nomor WhatsApp warga: <strong>{whatsappModal.nama}</strong>
-            </p>
-
-            <div className="p-3 bg-slate-50 border rounded-xl text-left text-xs font-mono text-slate-700 mb-4 whitespace-pre-line max-h-48 overflow-y-auto">
-              {whatsappModal.pesan}
-            </div>
-
+            <p className="text-xs text-slate-500 mb-4">Kirimkan struk rincian transaksi & saldo terbaru ke nomor WhatsApp warga: <strong>{whatsappModal.nama}</strong></p>
+            <div className="p-3 bg-slate-50 border rounded-xl text-left text-xs font-mono text-slate-700 mb-4 whitespace-pre-line max-h-48 overflow-y-auto">{whatsappModal.pesan}</div>
             <div className="flex gap-2">
-              <a
-                href={`https://api.whatsapp.com/send?phone=${whatsappModal.no_hp.replace(/^0/, '62')}&text=${encodeURIComponent(whatsappModal.pesan)}`}
-                target="_blank"
-                rel="noreferrer"
-                onClick={() => setWhatsappModal(null)}
-                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow flex items-center justify-center gap-2 transition"
-              >
-                <MessageSquare className="w-4 h-4" /> Kirim WhatsApp Sekarang
-              </a>
-              <button
-                onClick={() => setWhatsappModal(null)}
-                className="px-4 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition"
-              >
-                Lewati
-              </button>
+              <a href={`https://api.whatsapp.com/send?phone=${whatsappModal.no_hp.replace(/^0/, '62')}&text=${encodeURIComponent(whatsappModal.pesan)}`} target="_blank" rel="noreferrer" onClick={() => setWhatsappModal(null)} className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow flex items-center justify-center gap-2 transition"><MessageSquare className="w-4 h-4" /> Kirim WhatsApp Sekarang</a>
+              <button onClick={() => setWhatsappModal(null)} className="px-4 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition">Lewati</button>
             </div>
           </div>
         </div>
@@ -1650,26 +1312,12 @@ export default function App() {
       {gantiPasswordModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 relative shadow-2xl">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-slate-800 flex items-center gap-2"><Key className="w-5 h-5 text-emerald-600" /> Ganti Password</h3>
-              <button onClick={() => {setGantiPasswordModal(false); setFormPassword({lama:'', baru:'', konfirmasi:''});}} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
-            </div>
+            <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-800 flex items-center gap-2"><Key className="w-5 h-5 text-emerald-600" /> Ganti Password</h3><button onClick={() => {setGantiPasswordModal(false); setFormPassword({lama:'', baru:'', konfirmasi:''});}} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button></div>
             <form onSubmit={handleGantiPassword} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1">PASSWORD LAMA</label>
-                <input type="password" value={formPassword.lama} onChange={(e) => setFormPassword({ ...formPassword, lama: e.target.value })} className="w-full p-2.5 border rounded-xl text-xs bg-slate-50" required />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1">PASSWORD BARU (MIN 6 KARAKTER)</label>
-                <input type="password" value={formPassword.baru} onChange={(e) => setFormPassword({ ...formPassword, baru: e.target.value })} className="w-full p-2.5 border rounded-xl text-xs bg-slate-50" minLength="6" required />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1">KONFIRMASI PASSWORD BARU</label>
-                <input type="password" value={formPassword.konfirmasi} onChange={(e) => setFormPassword({ ...formPassword, konfirmasi: e.target.value })} className="w-full p-2.5 border rounded-xl text-xs bg-slate-50" minLength="6" required />
-              </div>
-              <button type="submit" disabled={loading} className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow">
-                {loading ? 'Memproses...' : 'Simpan Password Baru'}
-              </button>
+              <div><label className="block text-xs font-semibold text-slate-500 mb-1">PASSWORD LAMA</label><input type="password" value={formPassword.lama} onChange={(e) => setFormPassword({ ...formPassword, lama: e.target.value })} className="w-full p-2.5 border rounded-xl text-xs bg-slate-50" required /></div>
+              <div><label className="block text-xs font-semibold text-slate-500 mb-1">PASSWORD BARU (MIN 6 KARAKTER)</label><input type="password" value={formPassword.baru} onChange={(e) => setFormPassword({ ...formPassword, baru: e.target.value })} className="w-full p-2.5 border rounded-xl text-xs bg-slate-50" minLength="6" required /></div>
+              <div><label className="block text-xs font-semibold text-slate-500 mb-1">KONFIRMASI PASSWORD BARU</label><input type="password" value={formPassword.konfirmasi} onChange={(e) => setFormPassword({ ...formPassword, konfirmasi: e.target.value })} className="w-full p-2.5 border rounded-xl text-xs bg-slate-50" minLength="6" required /></div>
+              <button type="submit" disabled={loading} className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow">{loading ? 'Memproses...' : 'Simpan Password Baru'}</button>
             </form>
           </div>
         </div>
@@ -1679,16 +1327,10 @@ export default function App() {
       {lupaPasswordModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 relative shadow-2xl text-center">
-            <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-3">
-              <HelpCircle className="w-6 h-6" />
-            </div>
+            <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-3"><HelpCircle className="w-6 h-6" /></div>
             <h3 className="font-bold text-slate-800 text-lg mb-2">Lupa Password?</h3>
-            <p className="text-sm text-slate-600 mb-6">
-              Silakan hubungi <strong>Ketua RW.05</strong> atau <strong>IT Support Pengurus</strong> untuk meminta reset password Anda.
-            </p>
-            <button onClick={() => setLupaPasswordModal(false)} className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-sm transition">
-              Mengerti, Tutup
-            </button>
+            <p className="text-sm text-slate-600 mb-6">Silakan hubungi <strong>Ketua RW.05</strong> atau <strong>IT Support Pengurus</strong> untuk meminta reset password Anda.</p>
+            <button onClick={() => setLupaPasswordModal(false)} className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-sm transition">Mengerti, Tutup</button>
           </div>
         </div>
       )}
@@ -1750,35 +1392,13 @@ export default function App() {
       {modalFoto !== null && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 print:hidden">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 relative shadow-2xl text-center">
-            <h4 className="font-bold text-slate-800 mb-3 flex items-center justify-center gap-2 text-base">
-              <Camera className="w-5 h-5 text-emerald-600" /> Bukti Timbangan
-            </h4>
-            
+            <h4 className="font-bold text-slate-800 mb-3 flex items-center justify-center gap-2 text-base"><Camera className="w-5 h-5 text-emerald-600" /> Bukti Timbangan</h4>
             {modalFoto && modalFoto.startsWith('data:image') ? (
-              <div className="rounded-xl overflow-hidden bg-slate-100 border max-h-96 flex items-center justify-center p-2">
-                <img 
-                  src={modalFoto} 
-                  alt="Bukti Penimbangan" 
-                  className="max-h-96 w-full object-contain rounded-lg" 
-                  onError={(e) => {
-                    console.error("Gagal merender gambar Base64:", modalFoto.substring(0, 50));
-                    e.target.style.display = 'none';
-                  }}
-                />
-              </div>
+              <div className="rounded-xl overflow-hidden bg-slate-100 border max-h-96 flex items-center justify-center p-2"><img src={modalFoto} alt="Bukti Penimbangan" className="max-h-96 w-full object-contain rounded-lg" onError={(e) => { e.target.style.display = 'none'; }} /></div>
             ) : (
-              <div className="p-6 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-medium">
-                ⚠️ Data foto tidak valid atau kosong di database (Format Base64 tidak ditemukan). 
-                <br/><span className="text-[10px] text-slate-500 mt-1 block">Nilai data: {String(modalFoto).substring(0, 40)}...</span>
-              </div>
+              <div className="p-6 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-medium">⚠️ Data foto tidak valid atau kosong di database (Format Base64 tidak ditemukan). <br/><span className="text-[10px] text-slate-500 mt-1 block">Nilai data: {String(modalFoto).substring(0, 40)}...</span></div>
             )}
-
-            <button
-              onClick={() => setModalFoto(null)}
-              className="mt-5 w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs transition shadow"
-            >
-              Tutup
-            </button>
+            <button onClick={() => setModalFoto(null)} className="mt-5 w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs transition shadow">Tutup</button>
           </div>
         </div>
       )}
@@ -1787,70 +1407,36 @@ export default function App() {
       {cetakBukuModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 print:hidden">
           <div className="bg-white rounded-2xl w-full max-w-2xl p-6 relative shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                <Book className="w-5 h-5 text-emerald-600" /> Preview Buku Tabungan
-              </h3>
-              <button onClick={() => setCetakBukuModal(null)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
-            </div>
-            
+            <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-800 flex items-center gap-2"><Book className="w-5 h-5 text-emerald-600" /> Preview Buku Tabungan</h3><button onClick={() => setCetakBukuModal(null)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button></div>
             <div className="flex-1 overflow-y-auto border p-6 rounded-xl bg-white text-sm shadow-inner">
-              <div className="text-center border-b-2 border-black pb-4 mb-4">
-                <h1 className="text-xl font-bold uppercase">Buku Tabungan Bank Sampah</h1>
-                <h2 className="text-lg font-bold">"BERSERI" RW.05</h2>
-                <p className="text-xs">Kelurahan Tambakreja, Kec. Cilacap Selatan</p>
-              </div>
-              
+              <div className="text-center border-b-2 border-black pb-4 mb-4"><h1 className="text-xl font-bold uppercase">Buku Tabungan Bank Sampah</h1><h2 className="text-lg font-bold">"BERSERI" RW.05</h2><p className="text-xs">Kelurahan Tambakreja, Kec. Cilacap Selatan</p></div>
               <div className="flex justify-between items-end mb-4 font-semibold text-xs">
-                <div>
-                  <p className="mb-1">Nama Nasabah: <span className="font-bold">{cetakBukuModal.nama}</span></p>
-                  <p>Nomor Rekening: <span className="font-bold">{cetakBukuModal.no_rekening}</span></p>
-                </div>
-                <div className="text-right">
-                  <p>RT: <span className="font-bold">{cetakBukuModal.rt}</span></p>
-                </div>
+                <div><p className="mb-1">Nama Nasabah: <span className="font-bold">{cetakBukuModal.nama}</span></p><p>Nomor Rekening: <span className="font-bold">{cetakBukuModal.no_rekening}</span></p></div>
+                <div className="text-right"><p>RT: <span className="font-bold">{cetakBukuModal.rt}</span></p></div>
               </div>
-
               <table className="w-full border-collapse border border-black text-xs">
                 <thead>
                   <tr className="bg-gray-100">
-                    <th className="border border-black p-2 text-left">Tanggal</th>
-                    <th className="border border-black p-2 text-left">Keterangan</th>
-                    <th className="border border-black p-2 text-right">Masuk (Rp)</th>
-                    <th className="border border-black p-2 text-right">Keluar (Rp)</th>
-                    <th className="border border-black p-2 text-right">Saldo (Rp)</th>
+                    <th className="border border-black p-2 text-left">Tanggal</th><th className="border border-black p-2 text-left">Keterangan</th>
+                    <th className="border border-black p-2 text-right">Masuk (Rp)</th><th className="border border-black p-2 text-right">Keluar (Rp)</th><th className="border border-black p-2 text-right">Saldo (Rp)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(() => {
                     const trxWargaMentah = semuaTransaksi.filter(t => t.no_rekening === cetakBukuModal.no_rekening);
-                    const riwayatCetak = getRiwayatLengkap(cetakBukuModal, trxWargaMentah, true); // true = Ascending (Terlama ke terbaru)
-
+                    const riwayatCetak = getRiwayatLengkap(cetakBukuModal, trxWargaMentah, true);
                     let saldoAkumulasi = 0;
-                    if (riwayatCetak.length === 0) {
-                      return <tr><td colSpan="5" className="border border-black p-4 text-center">Belum ada riwayat transaksi.</td></tr>;
-                    }
-
+                    if (riwayatCetak.length === 0) return <tr><td colSpan="5" className="border border-black p-4 text-center">Belum ada riwayat transaksi.</td></tr>;
                     return riwayatCetak.map(t => {
                       saldoAkumulasi += t.total_harga;
                       const isPenarikan = t.jenis_transaksi === 'penarikan' || t.total_harga < 0;
                       return (
                         <tr key={t.id}>
-                          <td className="border border-black p-2 whitespace-nowrap">
-                            {t.tanggal?.seconds ? new Date(t.tanggal.seconds * 1000).toLocaleDateString('id-ID') : '-'}
-                          </td>
-                          <td className="border border-black p-2">
-                            {t.kategori_sampah} {isPenarikan || t.berat_kg === 0 ? '' : `(${t.berat_kg} kg)`}
-                          </td>
-                          <td className="border border-black p-2 text-right">
-                            {!isPenarikan && t.total_harga > 0 ? t.total_harga.toLocaleString('id-ID') : '-'}
-                          </td>
-                          <td className="border border-black p-2 text-right">
-                            {isPenarikan ? Math.abs(t.total_harga).toLocaleString('id-ID') : '-'}
-                          </td>
-                          <td className="border border-black p-2 text-right font-bold">
-                            {saldoAkumulasi.toLocaleString('id-ID')}
-                          </td>
+                          <td className="border border-black p-2 whitespace-nowrap">{t.tanggal?.seconds ? new Date(t.tanggal.seconds * 1000).toLocaleDateString('id-ID') : '-'}</td>
+                          <td className="border border-black p-2">{t.kategori_sampah} {isPenarikan || t.berat_kg === 0 ? '' : `(${t.berat_kg} kg)`}</td>
+                          <td className="border border-black p-2 text-right">{!isPenarikan && t.total_harga > 0 ? t.total_harga.toLocaleString('id-ID') : '-'}</td>
+                          <td className="border border-black p-2 text-right">{isPenarikan ? Math.abs(t.total_harga).toLocaleString('id-ID') : '-'}</td>
+                          <td className="border border-black p-2 text-right font-bold">{saldoAkumulasi.toLocaleString('id-ID')}</td>
                         </tr>
                       );
                     });
@@ -1858,81 +1444,40 @@ export default function App() {
                 </tbody>
               </table>
             </div>
-
-            <div className="mt-4 flex gap-3 pt-4 border-t">
-              <button 
-                onClick={() => window.print()} 
-                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md transition flex items-center justify-center gap-2"
-              >
-                <Printer className="w-4 h-4" /> Cetak Buku Sekarang
-              </button>
-            </div>
+            <div className="mt-4 flex gap-3 pt-4 border-t"><button onClick={() => window.print()} className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md transition flex items-center justify-center gap-2"><Printer className="w-4 h-4" /> Cetak Buku Sekarang</button></div>
           </div>
         </div>
       )}
     </div>
 
-    {/* ============================================================== */}
     {/* RENDER KHUSUS CETAK BUKU TABUNGAN (HANYA MUNCUL SAAT DI-PRINT) */}
-    {/* ============================================================== */}
     {cetakBukuModal && (
       <div className="hidden print:block w-full bg-white text-black text-sm p-4">
-        <div className="text-center border-b-2 border-black pb-4 mb-4">
-          <h1 className="text-2xl font-bold uppercase">Buku Tabungan Bank Sampah</h1>
-          <h2 className="text-xl font-bold">"BERSERI" RW.05</h2>
-          <p className="text-sm">Kelurahan Tambakreja, Kec. Cilacap Selatan</p>
-        </div>
-        
+        <div className="text-center border-b-2 border-black pb-4 mb-4"><h1 className="text-2xl font-bold uppercase">Buku Tabungan Bank Sampah</h1><h2 className="text-xl font-bold">"BERSERI" RW.05</h2><p className="text-sm">Kelurahan Tambakreja, Kec. Cilacap Selatan</p></div>
         <div className="flex justify-between items-end mb-4 font-semibold text-sm">
-          <div>
-            <p className="mb-1">Nama Nasabah: <span className="font-bold">{cetakBukuModal.nama}</span></p>
-            <p>Nomor Rekening: <span className="font-bold">{cetakBukuModal.no_rekening}</span></p>
-          </div>
-          <div className="text-right">
-            <p>RT: <span className="font-bold">{cetakBukuModal.rt}</span></p>
-          </div>
+          <div><p className="mb-1">Nama Nasabah: <span className="font-bold">{cetakBukuModal.nama}</span></p><p>Nomor Rekening: <span className="font-bold">{cetakBukuModal.no_rekening}</span></p></div>
+          <div className="text-right"><p>RT: <span className="font-bold">{cetakBukuModal.rt}</span></p></div>
         </div>
-
         <table className="w-full border-collapse border border-black text-sm">
           <thead>
-            <tr className="bg-gray-100">
-              <th className="border border-black p-2 text-left">Tanggal</th>
-              <th className="border border-black p-2 text-left">Keterangan</th>
-              <th className="border border-black p-2 text-right">Masuk (Rp)</th>
-              <th className="border border-black p-2 text-right">Keluar (Rp)</th>
-              <th className="border border-black p-2 text-right">Saldo (Rp)</th>
-            </tr>
+            <tr className="bg-gray-100"><th className="border border-black p-2 text-left">Tanggal</th><th className="border border-black p-2 text-left">Keterangan</th><th className="border border-black p-2 text-right">Masuk (Rp)</th><th className="border border-black p-2 text-right">Keluar (Rp)</th><th className="border border-black p-2 text-right">Saldo (Rp)</th></tr>
           </thead>
           <tbody>
             {(() => {
               const trxWargaMentah = semuaTransaksi.filter(t => t.no_rekening === cetakBukuModal.no_rekening);
               const riwayatCetak = getRiwayatLengkap(cetakBukuModal, trxWargaMentah, true);
               let saldoAkumulasi = 0;
-              
-              if (riwayatCetak.length === 0) {
-                return <tr><td colSpan="5" className="border border-black p-4 text-center">Belum ada riwayat transaksi.</td></tr>;
-              }
-
+              if (riwayatCetak.length === 0) return <tr><td colSpan="5" className="border border-black p-4 text-center">Belum ada riwayat transaksi.</td></tr>;
               return riwayatCetak.map(t => {
                 saldoAkumulasi += t.total_harga;
                 const isPenarikan = t.jenis_transaksi === 'penarikan' || t.total_harga < 0;
                 return (
                   <tr key={t.id}>
-                    <td className="border border-black p-2 whitespace-nowrap">
-                      {t.tanggal?.seconds ? new Date(t.tanggal.seconds * 1000).toLocaleDateString('id-ID') : '-'}
-                    </td>
-                    <td className="border border-black p-2">
-                      {t.kategori_sampah} {isPenarikan || t.berat_kg === 0 ? '' : `(${t.berat_kg} kg)`}
-                    </td>
-                    <td className="border border-black p-2 text-right">
-                      {!isPenarikan && t.total_harga > 0 ? t.total_harga.toLocaleString('id-ID') : '-'}
-                    </td>
-                    <td className="border border-black p-2 text-right">
-                      {isPenarikan ? Math.abs(t.total_harga).toLocaleString('id-ID') : '-'}
-                    </td>
-                    <td className="border border-black p-2 text-right font-bold">
-                      {saldoAkumulasi.toLocaleString('id-ID')}
-                    </td>
+                    <td className="border border-black p-2 whitespace-nowrap">{t.tanggal?.seconds ? new Date(t.tanggal.seconds * 1000).toLocaleDateString('id-ID') : '-'}</td>
+                    <td className="border border-black p-2">{t.kategori_sampah} {isPenarikan || t.berat_kg === 0 ? '' : `(${t.berat_kg} kg)`}</td>
+                    <td className="border border-black p-2 text-right">{!isPenarikan && t.total_harga > 0 ? t.total_harga.toLocaleString('id-ID') : '-'}</td>
+                    <td className="border border-black p-2 text-right">{isPenarikan ? Math.abs(t.total_harga).toLocaleString('id-ID') : '-'}</td>
+                    <td className="border border-black p-2 text-right font-bold">{saldoAkumulasi.toLocaleString('id-ID')}</td>
                   </tr>
                 );
               });
