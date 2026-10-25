@@ -8,18 +8,21 @@ import {
 // --- TAMBAHAN BARU: FIREBASE AUTHENTICATION ---
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
 
-// Inisialisasi Auth (Otomatis mengambil instance aplikasi Firebase yang sedang berjalan)
+// Inisialisasi Auth
 const auth = getAuth();
 
-// 1. Fungsi Login dengan Email & Password
-export const loginAdmin = async (email, password) => {
+// 1. Fungsi Login dengan Username (Trik Dummy Domain)
+export const loginAdmin = async (username, password) => {
   try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    // Jika ada '@' berarti email asli (untuk bos), jika tidak ada tambahkan dummy domain (untuk petugas)
+    const formatEmail = username.includes('@') ? username : `${username}@berseri.local`;
+    
+    const userCredential = await signInWithEmailAndPassword(auth, formatEmail, password);
     return { success: true, user: userCredential.user };
   } catch (error) {
     let errorMessage = "Terjadi kesalahan saat login.";
     if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-      errorMessage = "Email atau Password salah!";
+      errorMessage = "Username atau Password salah!";
     }
     return { success: false, error: errorMessage };
   }
@@ -35,34 +38,63 @@ export const logoutAdmin = async () => {
   }
 };
 
-// 3. Listener / Pemantau Status Sesi Login (Agar tidak perlu login ulang saat di-refresh)
+// 3. Listener / Pemantau Status Sesi Login
 export const subscribeAuth = (callback) => {
   return onAuthStateChanged(auth, (user) => {
     callback(user);
   });
 };
 
-// 4. Fungsi Buat Akun Petugas Baru (Menggunakan REST API agar Super Admin tidak ter-logout)
-export const tambahAkunPetugas = async (email, password) => {
+// 4. Fungsi Buat Akun Petugas Baru & Simpan Riwayat
+export const tambahAkunPetugas = async (username, password) => {
   try {
+    // Otomatis ubah username jadi format email gaib
+    const formatEmail = username.includes('@') ? username : `${username}@berseri.local`;
     const apiKey = auth.app.options.apiKey; 
+    
     const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, returnSecureToken: false })
+      body: JSON.stringify({ email: formatEmail, password, returnSecureToken: false })
     });
     const data = await response.json();
     if (data.error) throw new Error(data.error.message);
+
+    // --- TAMBAHAN: Simpan ke Firestore agar Admin bisa lihat password ---
+    await addDoc(collection(db, "akun_petugas"), {
+      username: username,
+      password: password, // Menyimpan password secara kasat mata
+      createdAt: serverTimestamp()
+    });
+
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
   }
 };
+
+// 5. Fungsi Mengambil Daftar Petugas dari Firestore
+export const getDaftarPetugas = async () => {
+  try {
+    const querySnapshot = await getDocs(collection(db, "akun_petugas"));
+    const list = [];
+    querySnapshot.forEach((docSnap) => list.push({ id: docSnap.id, ...docSnap.data() }));
+    return list;
+  } catch (error) { return []; }
+};
+
+// 6. Fungsi Menghapus Riwayat Akun Petugas (Hanya Hapus Tampilan)
+export const hapusRiwayatPetugas = async (id) => {
+  try {
+    await deleteDoc(doc(db, "akun_petugas", id));
+    return { success: true };
+  } catch (error) { return { success: false, error: error.message }; }
+};
 // --- AKHIR TAMBAHAN FIREBASE AUTHENTICATION ---
 
 
 // =========================================================
-// 1. PENGATURAN PASSWORD LAMA (TETAP DIPERTAHANKAN SESUAI PERMINTAAN)
+// 1. PENGATURAN PASSWORD LAMA (TETAP DIPERTAHANKAN)
 // =========================================================
 export const getPasswords = async () => {
   try {

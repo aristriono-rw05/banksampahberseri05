@@ -12,7 +12,7 @@ import {
   getRiwayatTransaksi, getAllTransaksi, getKategoriSampah, tambahKategoriSampah,
   hapusKategoriSampah, updateKategoriSampah, updateNasabah, hapusNasabah,
   updateTransaksi, hapusTransaksi, getPasswords, updatePassword,
-  loginAdmin, logoutAdmin, subscribeAuth, tambahAkunPetugas
+  loginAdmin, logoutAdmin, subscribeAuth, tambahAkunPetugas, getDaftarPetugas, hapusRiwayatPetugas
 } from './services/BankService';
 
 export default function App() {
@@ -22,11 +22,12 @@ export default function App() {
   const [currentRoleLoggedIn, setCurrentRoleLoggedIn] = useState(null);
   
   // State Form Login Firebase
-  const [emailInput, setEmailInput] = useState('');
+  const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   
-  // State Form Tambah Petugas Baru
-  const [formPetugas, setFormPetugas] = useState({ email: '', password: '' });
+  // State Form Tambah Petugas Baru & Daftar Petugas
+  const [formPetugas, setFormPetugas] = useState({ username: '', password: '' });
+  const [daftarPetugas, setDaftarPetugas] = useState([]);
 
   // State Data Master
   const [daftarNasabah, setDaftarNasabah] = useState([]);
@@ -114,6 +115,9 @@ export default function App() {
       setKategoriList(katDB || []);
       const trxDB = await getAllTransaksi();
       setSemuaTransaksi(trxDB || []);
+      
+      const petugasDB = await getDaftarPetugas();
+      setDaftarPetugas(petugasDB || []);
     } catch (err) {
       tampilkanPesan('error', 'Gagal memuat data dari database.');
     } finally {
@@ -165,13 +169,13 @@ export default function App() {
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
-    const res = await loginAdmin(emailInput, passwordInput);
+    const res = await loginAdmin(usernameInput, passwordInput);
     if (res.success) {
       tampilkanPesan('success', 'Berhasil Login!');
-      setEmailInput('');
+      setUsernameInput('');
       setPasswordInput('');
     } else {
-      tampilkanPesan('error', res.error || 'Email atau Password salah.');
+      tampilkanPesan('error', res.error || 'Username atau Password salah.');
     }
     setLoading(false);
   };
@@ -187,14 +191,22 @@ export default function App() {
     if (formPetugas.password.length < 6) return tampilkanPesan('error', 'Password minimal 6 karakter!');
     
     setLoading(true);
-    const res = await tambahAkunPetugas(formPetugas.email, formPetugas.password);
+    const res = await tambahAkunPetugas(formPetugas.username, formPetugas.password);
     if (res.success) {
-      tampilkanPesan('success', `Akun petugas ${formPetugas.email} berhasil dibuat!`);
-      setFormPetugas({ email: '', password: '' });
+      tampilkanPesan('success', `Akun petugas ${formPetugas.username} berhasil dibuat!`);
+      setFormPetugas({ username: '', password: '' });
+      loadData();
     } else {
       tampilkanPesan('error', `Gagal mendaftar: ${res.error}`);
     }
     setLoading(false);
+  };
+
+  const handleHapusPetugas = async (id) => {
+    if (window.confirm('Hapus riwayat akun ini dari daftar? (Akun tetap bisa login jika belum dihapus di Firebase Console)')) {
+      const res = await hapusRiwayatPetugas(id);
+      if (res.success) { tampilkanPesan('success', 'Riwayat dihapus.'); loadData(); }
+    }
   };
 
   const handleGantiPassword = async (e) => {
@@ -619,7 +631,7 @@ export default function App() {
 
         <main className="max-w-6xl mx-auto px-4 mt-6">
           
-          {/* LOGIN FORM (MENGGUNAKAN EMAIL & PASSWORD FIREBASE) */}
+          {/* LOGIN FORM (MENGGUNAKAN USERNAME & PASSWORD) */}
           {activeRole === 'admin' && !currentRoleLoggedIn && (
             <div className="max-w-md mx-auto mt-8 print:hidden">
               <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-8 text-center relative">
@@ -627,14 +639,14 @@ export default function App() {
                   <Lock className="w-8 h-8" />
                 </div>
                 <h2 className="text-2xl font-bold text-slate-800 mb-1">Akses Pengurus</h2>
-                <p className="text-xs text-slate-500 mb-6">Masuk menggunakan Email dan Password yang terdaftar untuk mengakses dashboard.</p>
+                <p className="text-xs text-slate-500 mb-6">Masuk menggunakan Username dan Password yang terdaftar untuk mengakses dashboard.</p>
                 
                 <form onSubmit={handleLogin} className="space-y-4">
                   <input
-                    type="email"
-                    placeholder="Alamat Email..."
-                    value={emailInput}
-                    onChange={(e) => setEmailInput(e.target.value)}
+                    type="text"
+                    placeholder="Masukkan Username..."
+                    value={usernameInput}
+                    onChange={(e) => setUsernameInput(e.target.value)}
                     className="w-full p-3 border rounded-xl text-center font-medium focus:ring-2 focus:ring-emerald-500 bg-slate-50"
                     required
                   />
@@ -727,8 +739,8 @@ export default function App() {
 
                   <form onSubmit={handleTambahPetugas} className="space-y-4">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">ALAMAT EMAIL PETUGAS</label>
-                      <input type="email" value={formPetugas.email} onChange={(e) => setFormPetugas({ ...formPetugas, email: e.target.value })} className="w-full p-3 border rounded-xl text-sm bg-slate-50" placeholder="contoh: petugas01@gmail.com" required />
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">USERNAME PETUGAS</label>
+                      <input type="text" value={formPetugas.username} onChange={(e) => setFormPetugas({ ...formPetugas, username: e.target.value })} className="w-full p-3 border rounded-xl text-sm bg-slate-50" placeholder="contoh: petugas01" required />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 mb-1">PASSWORD (MINIMAL 6 KARAKTER)</label>
@@ -738,6 +750,41 @@ export default function App() {
                       {loading ? 'Memproses...' : 'Daftarkan Akun Petugas'}
                     </button>
                   </form>
+
+                  {/* TAMBAHAN TABEL DAFTAR AKUN */}
+                  <div className="mt-8 border-t pt-6">
+                    <h3 className="text-sm font-bold text-slate-700 mb-3">Daftar Akun Petugas & Password</h3>
+                    <div className="overflow-x-auto border rounded-xl">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-100 border-b text-slate-600 uppercase">
+                            <th className="p-2.5">Username</th>
+                            <th className="p-2.5">Password Terdaftar</th>
+                            <th className="p-2.5 text-center">Aksi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {daftarPetugas.length === 0 ? (
+                            <tr>
+                              <td colSpan="3" className="p-6 text-center text-slate-400">Belum ada akun petugas yang didaftarkan.</td>
+                            </tr>
+                          ) : (
+                            daftarPetugas.map((p) => (
+                              <tr key={p.id} className="hover:bg-slate-50">
+                                <td className="p-2.5 font-bold text-slate-800">{p.username}</td>
+                                <td className="p-2.5 font-mono text-rose-600 font-bold bg-rose-50 px-2 rounded tracking-widest">{p.password}</td>
+                                <td className="p-2.5 text-center">
+                                  <button onClick={() => handleHapusPetugas(p.id)} className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded" title="Hapus dari daftar">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </div>
               )}
 
